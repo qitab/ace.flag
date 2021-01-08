@@ -1,6 +1,12 @@
+;;; Copyright 2021 Google LLC
+;;;
+;;; Use of this source code is governed by an MIT-style
+;;; license that can be found in the LICENSE file or at
+;;; https://opensource.org/licenses/MIT.
+
 ;;; Utilities to parse command line flags.
 ;;; The parse-command-line utility offers parsing of command line flags that
-;;; is close to google3 binary flag parsing.
+;;; is close to ABSL binary flag parsing.
 ;;;
 ;;; The parser supports flags defined through the FLAG:DEFINE macro.
 ;;; ace.flag:print-help is a utility that formats the flags registered with define-flag.
