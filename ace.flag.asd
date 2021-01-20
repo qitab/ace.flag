@@ -12,11 +12,11 @@
   :version "1.0"
   :author "Lisp Community"
   :license "MIT"
-  :depends-on (ace.core)
+  :depends-on (:ace.core)
   :serial t
   :components
   ((:module "flag"
     :serial t
     :pathname ""
-    :components ((:file "parse.lisp")
-                 (:file "flag.lisp")))))
+    :components ((:file "parse")
+                 (:file "flag")))))
