@@ -1,5 +1,7 @@
 # Lisp flag libraries
 
+[![Gitter](https://badges.gitter.im/qitab/community.svg)](https://gitter.im/qitab/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 Utilities to parse command line flags.
 The parse-command-line utility offers parsing of command line flags that
 is close to google3 binary flag parsing.
