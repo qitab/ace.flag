@@ -498,7 +498,7 @@ Parameters:
 (defun* boolean-type-p (type)
   "Returns true if the TYPE is a boolean type-specifier."
   (declare (self ((or cons symbol)) boolean))
-  (and (subtypep type 'boolean) (subtypep 'boolean type)))
+  (and (subtypep type 'boolean) (values (subtypep 'boolean type))))
 
 (defun* parse-variable (variable value &key no-p equal-sign-p)
   "Parses a string VALUE accordingly to the type of a VARIABLE.
