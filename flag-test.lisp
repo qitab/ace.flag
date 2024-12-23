@@ -7,11 +7,11 @@
 ;;; Test the ace.flag package.
 ;;;
 
-(ace.core.package:defpackage* #:ace.flag-test
+(defpackage #:ace.flag-test
   (:documentation "Test command line flag parsing code in the ACE.FLAG package.")
-  (:use-alias #:ace.core.number
-              #:ace.core.string
-              #:ace.flag)
+  (:local-nicknames (#:number #:ace.core.number)
+                    (#:string #:ace.core.string)
+                    (#:flag #:ace.flag))
   (:use #:common-lisp #:ace.test)
   (:import-from #:ace.flag
                 #:parse-variable

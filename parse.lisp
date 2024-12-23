@@ -11,11 +11,11 @@
 ;;; parse:type
 ;;;
 
-(ace.core.package:defpackage* #:ace.flag.parse
+(defpackage #:ace.flag.parse
   (:shadow #:type)
   (:use #:common-lisp
         #:ace.core.number)
-  (:use-alias (#:parse #:ace.flag.parse))
+  (:local-nicknames (#:parse #:ace.flag.parse))
   (:import-from #:ace.core.type #:expand)
   (:export #:type
            #:true-value-string-p

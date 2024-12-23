@@ -29,16 +29,16 @@
 ;;;
 ;;;
 
-(ace.core.package:defpackage* #:ace.flag
+(defpackage #:ace.flag
   (:use #:common-lisp
         #:ace.core.defun
         #:ace.core.check)
-  (:use-alias #:ace.core.string
-              #:ace.core.macro
-              #:ace.core.number
-              #:ace.core.os
-              #:ace.core.type
-              #:ace.flag.parse)
+  (:local-nicknames (#:string #:ace.core.string)
+                    (#:macro #:ace.core.macro)
+                    (#:number #:ace.core.number)
+                    (#:os #:ace.core.os)
+                    (#:type #:ace.core.type)
+                    (#:parse #:ace.flag.parse))
   (:import-from #:ace.core.check #:check)
   (:import-from #:ace.core.collect #:with-collectors)
   (:export #:command-line

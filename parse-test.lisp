@@ -7,10 +7,10 @@
 ;;; Tests for the numbers package.
 ;;;
 
-(ace.core.package:defpackage* #:ace.flag.parse-test
+(defpackage #:ace.flag.parse-test
   (:use #:common-lisp
         #:ace.test)
-  (:use-alias (#:parse #:ace.flag.parse))
+  (:local-nicknames (#:parse #:ace.flag.parse))
   (:import-from #:ace.core.number
                 #:double-float-not-a-number))
 
