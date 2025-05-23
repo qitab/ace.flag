@@ -21,82 +21,87 @@
 
 (in-package #:ace.flag-test)
 
-(flag:define *boolean* t "Test boolean flag.")
+;;; All the tests except one expect that NAME gets defined via DEFPARAMETER,
+;;; whereas by default the flag can't be LET-bound.
+(defmacro test-define (name val doc &rest rest)
+  `(flag:define ,name ,val ,doc :def defparameter ,@rest))
 
-(flag:define *boolean2* nil "Test boolean flag." :type boolean)
+(test-define *boolean* t "Test boolean flag.")
 
-(flag:define *true* t "Test boolean flag.")
-(flag:define *false* nil "Test boolean flag." :type boolean)
+(test-define *boolean2* nil "Test boolean flag." :type boolean)
 
-(flag:define *null* nil "Always null" :type null)
+(test-define *true* t "Test boolean flag.")
+(test-define *false* nil "Test boolean flag." :type boolean)
 
-(flag:define *keyword* nil "A keyword flag" :type (or null keyword))
+(test-define *null* nil "Always null" :type null)
 
-(flag:define *member* :a "A member flag" :type (member nil :a :b :c))
+(test-define *keyword* nil "A keyword flag" :type (or null keyword))
 
-(flag:define *implicit-keyword* :a "An implicit keyword flag.")
+(test-define *member* :a "A member flag" :type (member nil :a :b :c))
 
-(flag:define *implicit-string* "string" "An implicit string flag.")
+(test-define *implicit-keyword* :a "An implicit keyword flag.")
 
-(flag:define *string* nil "A string flag." :type (or null string))
+(test-define *implicit-string* "string" "An implicit string flag.")
 
-(flag:define *FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF*
+(test-define *string* nil "A string flag." :type (or null string))
+
+(test-define *FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF*
     "very-long-flag" "This is a very long flag.")
 
-(flag:define *very-long-doc* "doc"
+(test-define *very-long-doc* "doc"
   "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 
-(flag:define *lorem-ipsum* "doc"
+(test-define *lorem-ipsum* "doc"
   "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod
 tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
 quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
 consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
 dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
 sunt in culpa qui officia deserunt mollit anim id est laborum."
-  :type (or null (member :loerm :ipsum :dolor) string))
+  :type (or null (member :lorem :ipsum :dolor) string))
 
-(flag:define *print-help-and-newlines* 10
+(test-define *print-help-and-newlines* 10
   "This
 doc has embedded
    newlines and extra spaces.")
 
-(flag:define *implicit-integer* 10 "")
+(test-define *implicit-integer* 10 "")
 
-(flag:define *integer* 10 "An integer flag" :type (or (integer -100 100) null))
+(test-define *integer* 10 "An integer flag" :type (or (integer -100 100) null))
 
-(flag:define *number* 10 "A number flag." :type number)
+(test-define *number* 10 "A number flag." :type number)
 
-(flag:define *float* 10.0 "A float flag" :type single-float)
+(test-define *float* 10.0 "A float flag" :type single-float)
 
-(flag:define *double* 10.0d0 "A double flag" :type double-float)
-(flag:define *double2* nil "A double flag" :type (or double-float null))
-(flag:define *double3* nil "A double flag" :type (or double-float null))
+(test-define *double* 10.0d0 "A double flag" :type double-float)
+(test-define *double2* nil "A double flag" :type (or double-float null))
+(test-define *double3* nil "A double flag" :type (or double-float null))
 
-(flag:define *mod* 10 "Modulo 10" :type (mod 16))
+(test-define *mod* 10 "Modulo 10" :type (mod 16))
 
-(flag:define *plus* 10 "Positive fixnum" :type (and fixnum unsigned-byte))
+(test-define *plus* 10 "Positive fixnum" :type (and fixnum unsigned-byte))
 
-(flag:define *some-flag* nil "A Flag that accepts inf, -inf, nan, or number."
+(test-define *some-flag* nil "A Flag that accepts inf, -inf, nan, or number."
   :type (or (member nil :inf :-inf :nan) number))
 
-(flag:define naked-flag nil "" :type boolean)
+(test-define naked-flag nil "" :type boolean)
 
-(flag:define flags::a-flag 0 "This is a flag in the flags package." :type fixnum)
+(test-define flags::a-flag 0 "This is a flag in the flags package." :type fixnum)
 
-(flag:define :b-flag 0 "This is a flag in the flags package." :type fixnum)
+(test-define :b-flag 0 "This is a flag in the flags package." :type fixnum)
 
-(flag:define "C-FLAG" 0 "This is a flag in the flags package." :type fixnum)
+(test-define "C-FLAG" 0 "This is a flag in the flags package." :type fixnum)
 
 (declaim (fixnum *parameter*))
 (defparameter *parameter* 10)
 
-(flag:define *named-flag* 20 "A named flag." :name "a-named-flag")
+(test-define *named-flag* 20 "A named flag." :name "a-named-flag")
 
-(flag:define *named-flag2* 20 "A named flag." :names ("a-named-flag2" "named-flag2"))
+(test-define *named-flag2* 20 "A named flag." :names ("a-named-flag2" "named-flag2"))
 
 (defun parse-hex (x) (parse-integer x :radix 16))
 
-(flag:define *parsed-flag* 0 "A flag in hex." :parser parse-hex)
+(test-define *parsed-flag* 0 "A flag in hex." :parser parse-hex)
 
 (deftype foo () 'fixnum)
 
@@ -104,7 +109,7 @@ doc has embedded
   ;; Test default parsers for types.
   (values (parse-integer value :radix 16) t))
 
-(flag:define *foo* 0 "A foo flag" :type foo)
+(test-define *foo* 0 "A foo flag" :type foo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -194,7 +199,7 @@ doc has embedded
       consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
       dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
       sunt in culpa qui officia deserunt mollit anim id est laborum.]
-     Type: (OR NULL (MEMBER :LOERM :IPSUM :DOLOR) STRING)
+     Type: (OR NULL (MEMBER :LOREM :IPSUM :DOLOR) STRING)
      Value: \"doc\"
 
   -M
@@ -594,18 +599,18 @@ doc has embedded
   (expect-macro-warning (flag:define *funny/flag* t "na" :type symbol)))
 
 
-(flag:define *boo* t "Short test boolean flag." :names ("boo" "B"))
+(test-define *boo* t "Short test boolean flag." :names ("boo" "B"))
 
-(flag:define *key* nil "Short keyword flag" :type (or null keyword) :names ("key" "K"))
+(test-define *key* nil "Short keyword flag" :type (or null keyword) :names ("key" "K"))
 
-(flag:define *mem* :a "Short member flag" :type (member nil :a :b :c) :names ("mem" "M"))
+(test-define *mem* :a "Short member flag" :type (member nil :a :b :c) :names ("mem" "M"))
 
-(flag:define *int* 10 "An short int flag" :type (or (integer -100 100) null) :names ("int" "i"))
-(flag:define *int2* 20 "An short int flag" :type (or (integer -100 100) null) :names ("sint" "I"))
+(test-define *int* 10 "An short int flag" :type (or (integer -100 100) null) :names ("int" "i"))
+(test-define *int2* 20 "An short int flag" :type (or (integer -100 100) null) :names ("sint" "I"))
 
-(flag:define *flo* 10.0 "A short float flag" :type single-float :names ("sfloat" "f"))
+(test-define *flo* 10.0 "A short float flag" :type single-float :names ("sfloat" "f"))
 
-(flag:define *str* "" "A double flag" :type string :names ("str" "S"))
+(test-define *str* "" "A double flag" :type string :names ("str" "S"))
 
 (deftest test-short-flags ()
   (with-flags-binding (:args '("-B=false"
@@ -623,8 +628,8 @@ doc has embedded
     (expect (= *flo* 0.0))
     (expect (equal *str* "str"))))
 
-(flag:define *flag_with_underscores* 10.0 "A flag with underscores.")
-(flag:define *flag-with-hyphens* 30.0 "A flag with hyphens.")
+(test-define *flag_with_underscores* 10.0 "A flag with underscores.")
+(test-define *flag-with-hyphens* 30.0 "A flag with hyphens.")
 
 (deftest underscores-test ()
   (with-flags-binding (:args '("--flag_with_underscores=20.0"
@@ -660,7 +665,7 @@ doc has embedded
   (let ((command-line (append +before+ arguments +after+ +skip+)))
     (check (equal +expected-unparsed-flags+ (flag:parse-command-line :args command-line)))))
 
-(flag:define *boolean-flag* nil "Boolean flag used for testing." :type boolean :name "boolflag")
+(test-define *boolean-flag* nil "Boolean flag used for testing." :type boolean :name "boolflag")
 
 (deftest boolean-flag ()
   (expect (not *boolean-flag*))
@@ -696,7 +701,7 @@ doc has embedded
     (expect-error (parse-command-line* '("--noboolflag" "true")))
     (expect-error (parse-command-line* '("--noboolflag" "false")))))
 
-(flag:define *keyword-flag* :foo "no doc" :name "keyflag" :type keyword)
+(test-define *keyword-flag* :foo "no doc" :name "keyflag" :type keyword)
 
 (deftest keyword-flag ()
   (expect (eq *keyword-flag* :foo))
@@ -708,7 +713,7 @@ doc has embedded
     (parse-command-line* '("--keyflag="))
     (expect (eq *keyword-flag* :||))))
 
-(flag:define *symbol-flag* :bar "no doc" :name "symflag" :type symbol)
+(test-define *symbol-flag* :bar "no doc" :name "symflag" :type symbol)
 
 (deftest symbol-flag ()
   (expect (eq *symbol-flag* :bar))
@@ -723,7 +728,7 @@ doc has embedded
     (expect-error (parse-command-line* '("--symflag" "bad-package:foo")))
     (expect-error (flag:parse-command-line :args '("--symflag")))))
 
-(flag:define *string-flag* "foo" "no doc" :name "stringflag" :type string)
+(test-define *string-flag* "foo" "no doc" :name "stringflag" :type string)
 
 (deftest string-flag ()
   (expect (string= *string-flag* "foo"))
@@ -735,7 +740,7 @@ doc has embedded
     (parse-command-line* '("--stringflag="))
     (expect (string= *string-flag* ""))))
 
-(flag:define *integer-flag* 10 "no doc" :name "intflag" :type (integer -10 10))
+(test-define *integer-flag* 10 "no doc" :name "intflag" :type (integer -10 10))
 
 (deftest integer-flag ()
   (expect (= *integer-flag* 10))
@@ -747,7 +752,7 @@ doc has embedded
     (expect-error (parse-command-line* '("--intflag=")))
     (expect-error (parse-command-line* '("--intflag=123x456")))))
 
-(flag:define *single-float-flag* 3.14f0 "no doc" :name "sfflag" :type single-float)
+(test-define *single-float-flag* 3.14f0 "no doc" :name "sfflag" :type single-float)
 
 (deftest single-float-flag ()
   (expect (= *single-float-flag* 3.14f0))
@@ -760,7 +765,7 @@ doc has embedded
     (expect-error (parse-command-line* '("--sfflag=-.42x-2")))
     (expect-error (parse-command-line* '("--sfflag=-.42d-2")))))
 
-(flag:define *double-float-flag* 0.12345d0 "no doc" :name "dfflag" :type (double-float -1d0 1d0))
+(test-define *double-float-flag* 0.12345d0 "no doc" :name "dfflag" :type (double-float -1d0 1d0))
 
 (deftest double-float-flag ()
   (expect (= *double-float-flag* 0.12345d0))
@@ -784,7 +789,7 @@ doc has embedded
         (values color t)
         (values nil nil))))
 
-(flag:define *color* :red "no doc" :name "color" :type color :parser color-parser)
+(test-define *color* :red "no doc" :name "color" :type color :parser color-parser)
 
 (deftest color-flag ()
   (expect (eq *color* :red))
@@ -803,8 +808,8 @@ doc has embedded
   (expect-macro-warning (flag:define *s* t 'd :name "s" :type symbol))
   (expect-macro-warning (flag:define *s* t "na" :name "s" :type vector)))
 
-(flag:define *no-go* nil "no doc" :name "nogo" :type boolean)
-(flag:define *rth* nil "no doc" :name "rth" :type boolean)
+(test-define *no-go* nil "no doc" :name "nogo" :type boolean)
+(test-define *rth* nil "no doc" :name "rth" :type boolean)
 
 (deftest boolean-semantic-errors ()
   (expect-error (flag:define *b* nil "na" :name "boolflag" :type boolean))

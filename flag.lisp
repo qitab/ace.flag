@@ -91,7 +91,9 @@
       (setf trimmed (string-downcase trimmed)))
     (and (acceptable-flag-name-p trimmed) trimmed)))
 
-(defmacro define (flag default doc &key type name names parser (def 'defparameter) setter)
+(defmacro define (flag default doc &key type name names parser
+                                   (def 'sb-ext:define-load-time-global)
+                                   setter)
   "Defines a flag and registers it as such under a name with stripped '*' and '-' in place of '_'.
  Flags in the FLAGS package are external. Note that the default name of the flag at command line
  does not include the package specifier and thus flags that share the same name may rise conflicts.
@@ -435,6 +437,7 @@ Parameters:
 (define *global-flags* nil
   "When provided, allows specifying global and special variables as a flag on the command line.
  The values are NIL - for none, :external - for package external, and T - for all flags."
+  :def defparameter
   :type global-flags
   :name "lisp-global-flags")
 
@@ -442,6 +445,7 @@ Parameters:
   "When non-nil the parsed flags will be transformed into a normalized form.
  The normalized form contains hyphens in place of underscores, trims '*' characters,
  and puts the name into lower case for flags names longer than one character."
+  :def defparameter
   :name "lisp-normalize-flags"
   :type boolean)
 
