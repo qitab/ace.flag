@@ -11,11 +11,6 @@
 ;;; The parser supports flags defined through the FLAG:DEFINE macro.
 ;;; ace.flag:print-help is a utility that formats the flags registered with define-flag.
 ;;;
-;;; Flags may refer to special variables. E.g. --cl:print-base and --cl::*print-base* refer to
-;;; the '*print-base*' special variable. This behavior is controlled by --lisp-global-flags.
-;;; The user may also allow this by default by passing :global-flags t
-;;; to the PARSE-COMMAND-LINE function.
-;;;
 ;;; Flags whose type is defined or expands to 'boolean' are considered boolean flags and this
 ;;; affects how those are parsed. Especially, the '--no' sets the flag to 'nil' and no other
 ;;; argument is consumed. Boolean flags that are not followed by another argument or the other
@@ -45,7 +40,6 @@
            #:parse-command-line
            #:print-help
            #:define
-           #:*global-flags*
            #:*normalize*))
 
 (in-package #:ace.flag)
@@ -276,7 +270,7 @@
   "A list of packages that are excluded from the PRINT-HELP output.")
 
 (defgeneric print-help (&key stream right-margin indent indent-help parentheses
-                        prefix global-flags normalize include-packages
+                        prefix normalize include-packages
                         exclude-packages documentation type)
   (:documentation
    "Prints help for flags registered using the DEFINE macro.
@@ -290,10 +284,6 @@ Parameters:
  PARENTHESES  - NIL or characters used to surround the help text for each flag.
                 (NIL, a character, or a sequence of two characters.)
  PREFIX       - one of '-' or '--' for prefix to be used when printing long flag names.
- GLOBAL-FLAGS - one of:
-         NIL - none (default),
-         :external - only external symbols,
-         T - all special and global variables.
  NORMALIZE - if non-nil, the names of flags are printed in the normalized form.
              Normalized form uses hyphens and lower-case characters.
  INCLUDE-PACKAGES - a list of package designators to print flags from.
@@ -309,7 +299,6 @@ Parameters:
                        (indent-help 5)
                        (parentheses "()")
                        (prefix "--")
-                       (global-flags nil)
                        (normalize nil)
                        (include-packages nil)
                        (exclude-packages *print-help-exclude-packages*)
@@ -354,20 +343,7 @@ Parameters:
       (maphash (lambda (name flag)
                  (when (included-package-p (symbol-package flag))
                    (pushnew name (gethash flag flags->names) :test #'equalp)))
-               (if normalize *flags-normalized* *flags*))
-
-      (ecase global-flags
-        ((nil))
-        (:external
-         (dolist (package (list-all-packages))
-           (when (included-package-p package)
-             (do-external-symbols (sym package)
-               (add-flag sym package)))))
-        ((t)
-         (do-all-symbols (sym)
-           (let ((package (symbol-package sym)))
-             (when (included-package-p package)
-               (add-flag sym package)))))))
+               (if normalize *flags-normalized* *flags*)))
 
     (maphash (lambda (flag names) (push (list* flag names) flags-sorted)) flags->names)
 
@@ -432,15 +408,6 @@ Parameters:
 ;;; Flag parsing ...
 ;;;
 
-(deftype global-flags () '(member nil :external t))
-
-(define *global-flags* nil
-  "When provided, allows specifying global and special variables as a flag on the command line.
- The values are NIL - for none, :external - for package external, and T - for all flags."
-  :def defparameter
-  :type global-flags
-  :name "lisp-global-flags")
-
 (define *normalize* nil
   "When non-nil the parsed flags will be transformed into a normalized form.
  The normalized form contains hyphens in place of underscores, trims '*' characters,
@@ -448,30 +415,6 @@ Parameters:
   :def defparameter
   :name "lisp-normalize-flags"
   :type boolean)
-
-(defun* find-variable (name)
-  "Search for a variable given a NAME.
- The name is transformed into uppercase.
- A colon is used to derive the package name.
- Then a symbol of a special variable is searched in the package."
-  (declare (self (string) symbol))
-  (when *global-flags*
-    (let* ((name (string-upcase name))
-           (pos (position #\: name :from-end t))
-           (package-name (if (and pos (plusp pos))
-                             (subseq name 0 (if (char= (char name (1- pos)) #\:) (1- pos) pos))
-                             (return-from find-variable)))
-           (package (find-package package-name))
-           (name (subseq name (1+ pos))))
-      (flet ((find-global (name)
-               (multiple-value-bind (symbol access) (find-symbol name package)
-                 (when (and (or (type:specialp symbol) (type:globalp symbol))
-                            (ecase *global-flags*
-                              (t t)
-                              (:external (eq access :external))))
-                   symbol))))
-        (when package
-          (find-global name))))))
 
 (defun* flag-info (arg)
   "Search for a variable and a type corresponding to the flag-name as specified by ARG.
@@ -494,8 +437,7 @@ Parameters:
                           (no-prefix-p flag-string)
                           (not (gethash flag-string flags))))
                (flag-name (if no-p (subseq flag-string 2) flag-string))
-               (variable (or (gethash flag-name flags)
-                             (find-variable arg-no-dashes))))
+               (variable (gethash flag-name flags)))
           (values (or flag-name arg-no-dashes) variable no-p))
         (values nil nil nil))))
 
@@ -547,21 +489,17 @@ Parameters:
   (let ((options (string:split (os:getenv "LISP_FLAG_OPTIONS") :by " ,")))
     (and (find option options :test #'string-equal) t)))
 
-(defun* parse-command-line (&key (args (command-line))
+(defun parse-command-line (&key (args (command-line))
                             (setp t)
-                            (global-flags *global-flags* global-flags-p)
                             (normalize *normalize* normalize-p))
   "Parses the flags taken by default from the program command-line arguments.
  Arguments:
   ARGS - are the program arguments, the first one of which usually being the program name,
   SETP - if true, the variables are set as they are parsed,
-  GLOBAL-FLAGS - if true, also look at global and special variables as flags.
   NORMALIZE - if true, the names of arguments are put into a normalized form.
  Returns (values unparsed-args parsed-flag-variables parsed-values)."
-  (declare (self (&key list t t t) list list list))
   (with-collectors (parsed-vars parsed-values unparsed)
-    (loop with *global-flags* = (if global-flags-p global-flags (getenv-option "globals"))
-          with *normalize* = (if normalize-p normalize (getenv-option "normalize"))
+    (loop with *normalize* = (if normalize-p normalize (getenv-option "normalize"))
           with args = args
           for arg = (pop args)
           while arg do

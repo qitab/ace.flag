@@ -14,8 +14,7 @@
                     (#:flag #:ace.flag))
   (:use #:common-lisp #:ace.test)
   (:import-from #:ace.flag
-                #:parse-variable
-                #:*global-flags*)
+                #:parse-variable)
   (:import-from #:ace.core.etc #:define-constant))
 
 
@@ -91,9 +90,6 @@ doc has embedded
 (test-define :b-flag 0 "This is a flag in the flags package." :type fixnum)
 
 (test-define "C-FLAG" 0 "This is a flag in the flags package." :type fixnum)
-
-(declaim (fixnum *parameter*))
-(defparameter *parameter* 10)
 
 (test-define *named-flag* 20 "A named flag." :name "a-named-flag")
 
@@ -284,13 +280,11 @@ doc has embedded
     (expect (string= e h) "[line: ~D] Expected ~S = ~S" line e h)))
 
 (defmacro with-flags-binding ((&key args (unparsed (gensym))
-                               (global-flags t)
                                (normalize t)) &body body)
   "Parses the args as flags and binds their values while executing body."
   `(multiple-value-bind (,unparsed vars values)
        (flag:parse-command-line
         :args ,args :setp nil
-        :global-flags ,global-flags
         :normalize ,normalize)
      (declare (ignorable ,unparsed))
      (progv vars values
@@ -359,7 +353,6 @@ doc has embedded
                                "--mod" "5"
                                "--plus" "2000"
                                "--some_flag" "nan"
-                               "--ace.flag-test:*parameter*" "20"
                                "--a-named_flag" "100"
                                "--named_flag2" "200"
                                "--parsed_flag" "FF"
@@ -367,8 +360,7 @@ doc has embedded
 
                                "--unknown-flag3" "unknown-value"
                                "--unknown-flag4")
-                       :unparsed unparsed
-                       :global-flags t)
+                       :unparsed unparsed)
     (expect (equal unparsed '("--unknown-flag1" "unknown-value"
                               "--unknown-flag2"
                               "--unknown-flag3" "unknown-value"
@@ -395,7 +387,6 @@ doc has embedded
     (expect (= *mod* 5))
     (expect (= *plus* 2000))
     (expect (eq *some-flag* :nan))
-    (expect (= *parameter* 20))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
     (expect (= *parsed-flag* #xFF))
@@ -432,7 +423,6 @@ doc has embedded
                                "--plus=2000"
                                "--some_flag=nan"
 
-                               "--ace.flag-test:*parameter*=20"
                                "--a-named_flag=100"
                                "--named_flag2=200"
                                "--parsed_flag=FF"
@@ -440,8 +430,7 @@ doc has embedded
 
                                "--unknown-flag3=unknown-value"
                                "--unknown-flag4")
-                       :unparsed unparsed
-                       :global-flags t)
+                       :unparsed unparsed)
     (expect (equal unparsed '("--unknown-flag1=unknown-value"
                               "--unknown-flag2"
                               "--unknown-flag3=unknown-value"
@@ -468,7 +457,6 @@ doc has embedded
     (expect (= *mod* 5))
     (expect (= *plus* 2000))
     (expect (eq *some-flag* :nan))
-    (expect (= *parameter* 20))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
     (expect (= *parsed-flag* #xFF))
@@ -493,8 +481,7 @@ doc has embedded
 
                                "--unknown-flag3=unknown-value"
                                "--unknown-flag4")
-                       :unparsed unparsed
-                       :global-flags nil)
+                       :unparsed unparsed)
     (expect (equal unparsed '("--unknown-flag1=unknown-value"
                               "--unknown-flag2"
                               "--ace.flag-test:parameter=20"
@@ -503,14 +490,10 @@ doc has embedded
 
 
 (deftest test-flags4 ()
-  (let* ((*global-flags* nil)
-         (*parameter* 11)
-         (unparsed
+  (let* ((unparsed
            (flag:parse-command-line :args '("--unknown-flag1=unknown-value"
-                                            "--lisp-global-flags=t"
 
                                             "--unknown-flag2"
-                                            "--ace.flag-test:*parameter*=33"
 
                                             "--unknown-flag3=unknown-value"
                                             "--unknown-flag4")
@@ -518,9 +501,7 @@ doc has embedded
     (expect (equal unparsed '("--unknown-flag1=unknown-value"
                               "--unknown-flag2"
                               "--unknown-flag3=unknown-value"
-                              "--unknown-flag4")))
-
-    (expect (= *parameter* 33))))
+                              "--unknown-flag4")))))
 
 (deftest test-flags-repeated ()
   (with-flags-binding (:args '("--boolean"
