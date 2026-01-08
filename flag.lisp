@@ -31,7 +31,6 @@
   (:local-nicknames (#:string #:ace.core.string)
                     (#:macro #:ace.core.macro)
                     (#:number #:ace.core.number)
-                    (#:os #:ace.core.os)
                     (#:type #:ace.core.type)
                     (#:parse #:ace.flag.parse))
   (:import-from #:ace.core.check #:check)
@@ -39,8 +38,7 @@
   (:export #:command-line
            #:parse-command-line
            #:print-help
-           #:define
-           #:*normalize*))
+           #:define))
 
 (in-package #:ace.flag)
 
@@ -408,13 +406,10 @@ Parameters:
 ;;; Flag parsing ...
 ;;;
 
-(define *normalize* nil
+(defparameter *normalize* nil
   "When non-nil the parsed flags will be transformed into a normalized form.
  The normalized form contains hyphens in place of underscores, trims '*' characters,
- and puts the name into lower case for flags names longer than one character."
-  :def defparameter
-  :name "lisp-normalize-flags"
-  :type boolean)
+ and puts the name into lower case for flags names longer than one character.")
 
 (defun* flag-info (arg)
   "Search for a variable and a type corresponding to the flag-name as specified by ARG.
@@ -484,14 +479,9 @@ Parameters:
           (t
            (values nil nil nil nil)))))
 
-(defun getenv-option (option)
-  "True if OPTION is found in the LISP_FLAG_OPTIONS environment variable."
-  (let ((options (string:split (os:getenv "LISP_FLAG_OPTIONS") :by " ,")))
-    (and (find option options :test #'string-equal) t)))
-
 (defun parse-command-line (&key (args (command-line))
-                            (setp t)
-                            (normalize *normalize* normalize-p))
+                                (setp t)
+                                ((:normalize *normalize*) *normalize*))
   "Parses the flags taken by default from the program command-line arguments.
  Arguments:
   ARGS - are the program arguments, the first one of which usually being the program name,
@@ -499,15 +489,13 @@ Parameters:
   NORMALIZE - if true, the names of arguments are put into a normalized form.
  Returns (values unparsed-args parsed-flag-variables parsed-values)."
   (with-collectors (parsed-vars parsed-values unparsed)
-    (loop with *normalize* = (if normalize-p normalize (getenv-option "normalize"))
-          with args = args
-          for arg = (pop args)
-          while arg do
-            (let* ((pos= (position #\= arg)) ; Support the --flag=value syntax.
-                   (flag-string (if pos= (subseq arg 0 pos=) arg))
-                   (value-string (if pos= (subseq arg (1+ pos=)) (car args))))
-              (multiple-value-bind (flag-name var no-p) (flag-info flag-string)
-                (cond ((equal flag-string "--")
+    (loop (unless args (return))
+          (let* ((arg (pop args))
+                 (pos= (position #\= arg)) ; Support the --flag=value syntax.
+                 (flag-string (if pos= (subseq arg 0 pos=) arg))
+                 (value-string (if pos= (subseq arg (1+ pos=)) (car args))))
+            (multiple-value-bind (flag-name var no-p) (flag-info flag-string)
+              (cond ((equal flag-string "--")
                        ;; An empty flag stops parsing of the arguments.
                        (unparsed arg)
                        (mapc #'unparsed args)
@@ -515,12 +503,12 @@ Parameters:
 
                       ;; Could not locate the variable or
                       ;; the flag has --noflag=value syntax.
-                      ((or (null var) (and no-p pos=))
+                    ((or (null var) (and no-p pos=))
                        (unparsed arg)
                        (unless (or pos= (null args) (string:prefixp "-" (car args)))
                          (unparsed (pop args))))
 
-                      (t
+                    (t
                        (multiple-value-bind (type value parsed-p consume-p)
                            (parse-variable var value-string :no-p no-p :equal-sign-p (and pos= t))
                          (check parsed-p "Could not parse ~S as the value of ~S [type: ~A]"
