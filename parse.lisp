@@ -23,11 +23,13 @@
 
 (defun true-value-string-p (value)
   "Tests that the string VALUE is one of the designators for a true boolean value."
+  (declare (optimize (safety 1))) ; re-enable type-checking if it was 0
   (declare (string value) (values boolean &optional))
   (and (member value '("true" "yes" "t") :test #'equalp) t))
 
 (defun false-value-string-p (value)
   "Tests that the string VALUE is one of the designators for a false boolean value."
+  (declare (optimize (safety 1))) ; re-enable type-checking if it was 0
   (declare (string value) (values boolean &optional))
   (and (member value '("false" "null" "nil" "no") :test #'equalp) t))
 
@@ -84,9 +86,6 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
   ; Parses a boolean value.
   (cond ((true-value-string-p value)  (values t t))
         ((false-value-string-p value) (values nil t))
-        ;; Flags starting with --no are handled on a different level.
-        ;; Flags with value T default to true.
-        ((eq value t)          (values t t))
         (t
          (values nil nil))))
 
