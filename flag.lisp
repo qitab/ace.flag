@@ -85,7 +85,8 @@
 
 (defmacro define (flag default doc &key type name names parser
                                    (def 'sb-ext:define-load-time-global)
-                                   setter)
+                                   setter
+                                   &aux (nullable (null default)))
   "Defines a flag and registers it as such under a name with stripped '*' and '-' in place of '_'.
  Flags in the FLAGS package are external. Note that the default name of the flag at command line
  does not include the package specifier and thus flags that share the same name may rise conflicts.
@@ -113,13 +114,10 @@
   SETTER        - The setter used to set the flag. If NIL, a default SETF setter is used.
 
  If no TYPE has been specified the type of the flag is derived from the DEFAULT value by following:
-    BOOLEAN       -> BOOLEAN
-    BIT           -> INTEGER
-    FIXNUM        -> INTEGER
-    CONS          -> LIST
-    any STRING    -> STRING
-    any CHARACTER -> CHARACTER
-    otherwise     -> (type-of value)."
+    BOOLEAN   -> BOOLEAN
+    INTEGER   -> INTEGER
+    STRING    -> STRING
+    CHARACTER -> CHARACTER."
 
   (when name (push name names))
   (flet ((fail (&rest args)
@@ -128,19 +126,42 @@
       (fail "The name ~S of the flag is not a string or symbol." flag))
     (unless (typep doc 'string)
       (fail "The flag ~S requires a help string." doc))
-    (unless (typep type '(or symbol cons))
-      (fail "The type of flag ~S needs to be a proper type specifier. Provided: ~S." flag type))
+
+    ;; PARSER is required if the type of the containing variable is LIST.
+    ;; It's always possible to specify a parser though.
+    (wheN (or parser (eq type 'list))
+      (unless (typep parser '(and symbol (not null)))
+        (fail "The parser ~S specified for the flag ~S is not a valid symbol." parser flag)))
+
+    ;; If the type is explicitly nullable by way of being spelled (OR NULL x) or (OR x NULL)
+    ;; then change the type to its atom and remember its nullability.
+    ;; The only other valid list-shaped specified is for a MEMBER type.
+    (block nil
+      (when (typep type '(cons (eql or)))
+        (let ((rest (cdr type)))
+          (when (typep rest '(cons symbol (cons (eql null) null)))
+            (return (setq type (car rest) nullable t)))
+          (when (typep rest '(cons (eql null) (cons symbol null)))
+            (return (setq type (cadr rest) nullable t))))))
+          
+    (unless (or (member type ace.flag.parse::acceptable-flag-types)
+                (typep type '(cons (eql member))) ; lists of keywords are OK as type specifier
+                parser) ; or if it has a parser, accept anything
+      (fail "The type of flag ~S needs to be ~{~A~^|~}, got ~S." flag
+            ace.flag.parse::acceptable-flag-types type))
+
     (dolist (name names)
       (unless (stringp name)
         (fail "The additional names of the flag ~S need to be strings. Provided: ~S." flag name))
       (unless (plusp (length name))
         (fail "One of the names ~S for the flag ~S is empty." names flag)))
-    (unless (or (null type) (type:unknownp type)
-                (not (constantp default)) (typep (eval default) type)) ; NOLINT
-      (fail "The flag ~S default ~S is not of the required type: ~S." flag default type))
-
-    (unless (symbolp parser)
-      (fail "The parser ~S specified for the flag ~S is not a symbol." parser flag))
+    (when (constantp default)
+      (let ((value (eval default))) ; NOLINT
+        (cond ((typep value type)) ; ok
+              ((eq value nil) (setq nullable t)) ; it has to be
+              (t
+               (fail "The flag ~S default ~S is not of the required type: ~S."
+                     flag default type)))))
 
     (when (typep flag '(or keyword string))
       (export (setf flag (intern (string flag) +flags-package+)) +flags-package+))
@@ -170,6 +191,7 @@
              (specified-type type))
 
         (unless type
+          (error "What the dang hell are you trying to do?")
           ;; Derive type from the type of the default argument.
           (let ((declaimed (type:declaimed flag)))
             (setf type (cond ((not (member declaimed '(t nil)))
@@ -178,16 +200,15 @@
                               (type:upgraded-type-of (eval default))) ; NOLINT
                              (t nil)))))
         `(progn
-           (let ((nullable (typep nil ',type)))
-             (register ',flag ',provided-names nullable *flags*)
-             (register ',flag ',names nullable *flags-normalized*))
+           (register ',flag ',provided-names ',nullable *flags*)
+           (register ',flag ',names ',nullable *flags-normalized*)
            ,@(when parser
                `((setf (get ',flag 'parser) ',parser)))
            ,@(when specified-type
                `((setf (get ',flag 'specified-type) ',specified-type)))
 
            ,@(when def
-               `((declaim (type ,type ,flag))
+               `((declaim (type ,(if nullable `(or ,type null) type) ,flag))
                  (,def ,flag ,default ,doc)))
 
            (eval-when (:load-toplevel)
@@ -474,7 +495,7 @@ Parameters:
                   (values type nil nil nil))))
 
           (value
-           (multiple-value-bind (result parsedp) (parse:type type value)
+           (multiple-value-bind (result parsedp) (parse::type type value)
              (values type result (and parsedp (typep result type)) t)))
           (t
            (values nil nil nil nil)))))
