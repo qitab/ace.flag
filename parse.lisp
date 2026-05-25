@@ -4,18 +4,12 @@
 ;;; license that can be found in the LICENSE file or at
 ;;; https://opensource.org/licenses/MIT.
 
-;;; Generic utility for parsing complex Lisp types from text.
-;;;
-;;; type-expand - will take a type specifier and return an expanded canonical form.
-;;; variable-declared-type - will take a variable and return a type-specifier for it.
-;;;
-
 (defpackage #:ace.flag.parse
   (:shadow #:type)
   (:use #:common-lisp
         #:ace.core.number)
   (:import-from #:ace.core.type #:expand)
-  (:export #:type
+  (:export ;#:type
            #:true-value-string-p
            #:false-value-string-p))
 
@@ -33,11 +27,12 @@
   (declare (string value) (values boolean &optional))
   (and (member value '("false" "null" "nil" "no") :test #'equalp) t))
 
+(sb-ext:defglobal acceptable-flag-types '(boolean string integer fixnum real single-float double-float))
+    
 (defun type-selector (type-specifier)
-  "Returns the type selector for a type.
- Returns the TYPE-SPECIFIER itself if it is an atom.
- Returns the first element of the TYPE-SPECIFIER if it is list."
-  (if (consp type-specifier) (first type-specifier) type-specifier))
+  "Returns the type specifier which must be one of the supported specifiers"
+  (declare (optimize (safety 1) (speed 1)))
+  (the (member . #.acceptable-flag-types) type-specifier))
 
 ;;;
 ;; ace.flag.parse:type parses a string according to a type-specifier.
@@ -53,6 +48,7 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
  Tries to read the VALUE using Lisp reader. Numbers are favored. Then keywords.
  TYPE-SELECTOR is usually the first atom in the type specifier.
  SPECIFIER is the full type specifier."
+  (error "WTF")
   (cond ((null type-selector)
          (values nil nil))
 
@@ -89,129 +85,31 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
         (t
          (values nil nil))))
 
-(defmethod type ((type-selector (eql 'or)) (value string) &key specifier top)
-  ; Parses an or type. Iterates through the subtypes.
-  (assert specifier)
-  (dolist (sub-type (rest specifier))
-    (multiple-value-bind (parsed-value parsed-p)
-        (type (type-selector sub-type) value :specifier sub-type :top top)
-      (when (and parsed-p (or (null top) (typep parsed-value top)))
-        (return (values parsed-value t))))))
-
-(defmethod type ((type-selector (eql 'and)) (value string) &key specifier top)
-  ; Parses an and type. Iterates through the subtypes.
-  (assert specifier)
-  (dolist (sub-type (rest specifier))
-    (multiple-value-bind (parsed-value parsed-p)
-        (type (type-selector sub-type) value :specifier sub-type :top (or top specifier))
-      (when (and parsed-p (typep parsed-value (or top specifier)))
-        (return (values parsed-value t))))))
-
-(defmethod type ((type-selector (eql 'member)) (value string) &key specifier top)
-  ; Parses a member specifier. Iterates through members. Compares by equalp.
-  (assert specifier)
-  (let ((members (rest specifier)))
-    (if (or (equal members '(t nil)) (equal members '(nil t)))
-        (type 'boolean value :specifier 'boolean)
-        ;; else
-        (let ((number (read-number-from-string value)))
-          (dolist (member members)
-            (when (or (null top) (typep member top))
-              (typecase member
-                (null   (when (false-value-string-p value)
-                          (return (values nil t))))
-                (symbol (when (equalp (symbol-name member) value)
-                          (return (values member t))))
-                (number (when (eql member number)
-                          (return (values member t)))))))))))
-
-(defmethod type ((type-selector (eql 'null)) (value string) &key)
-  ; Parses a false value.
-  (values nil (false-value-string-p value)))
-
 (defmethod type ((type-selector (eql 'string)) (value string) &key)
-  ; Returns the value as string.
-  (values value (and value t)))
+  (values value t))
 
-(defmethod type ((type-selector (eql 'base-string)) (value string) &key)
-  ; Returns the value as string.
-  (values value (and value t)))
-
-(defmethod type ((type-selector (eql 'vector)) (value string) &key specifier)
-  ; Returns the value as string.
-  (when (typep value (or specifier type-selector))
-    (values value (and value t))))
-
-(defmethod type ((type-selector (eql 'simple-array)) (value string) &key specifier)
-  ; Returns the value as string.
-  (when (typep value (or specifier type-selector))
-    (values value (and value t))))
-
-(defmethod type ((type-selector (eql 'keyword)) (value string) &key)
-  ; Interns the value into the keyword package.
-  (let ((colon (position #\: value :test #'char=)))
-    (cond ((null colon)
-           (values (intern (string-upcase value) (find-package "KEYWORD")) t))
-          ((= colon 0)
-           (unless (find #\: value :test #'char= :start 1)
-             (type 'keyword (subseq value 1))))
-          (t
-           (values nil nil)))))
-
-(defmethod type ((type-selector (eql 'symbol)) (value string) &key)
-  ; Parses a symbol that is prefixed with the package.
-  (let* ((full-name (string-trim " " (string-upcase value)))
-         (pos (position #\: full-name :from-end t))
-         (package-name
-           (when (and pos (plusp pos))
-             (subseq full-name 0 (if (char= (char full-name (1- pos)) #\:) (1- pos) pos))))
-         (package (and package-name (find-package package-name)))
-         (symbol-name (and pos (subseq full-name (1+ pos))))
-         (symbol (cond (package
-                        (find-symbol symbol-name package))
-                       ((eql pos 0)
-                        (find-symbol symbol-name (find-package "KEYWORD"))))))
-    (values symbol (and symbol t))))
-
-(defmethod type ((type-selector (eql 'number)) (value string) &key)
-  ; Parses a number.
+(defmethod type ((type-selector (eql 'real)) (value string) &key)
   (let ((result (read-number-from-string value)))
     (values result (and result t))))
 
 (defmethod type ((type-selector (eql 'single-float)) (value string) &key)
-  ; Parses a number.
   (let* ((number (read-number-from-string value))
          (result (and (numberp number) (coerce number 'single-float))))
     (values result (and result t))))
 
 (defmethod type ((type-selector (eql 'double-float)) (value string) &key)
-  ; Parses a number.
   (let* ((number (read-number-from-string value))
          (result (and (numberp number) (coerce number 'double-float))))
     (values result (and result t))))
 
-(defmethod type ((type-selector (eql 'integer)) (value string) &key specifier)
-  ; Parses a number.
+(defmethod type ((type-selector (eql 'integer)) (value string) &key (specifier nil spec-p))
+  (when spec-p
+    (error "srsly WTF"))
   (let* ((number (read-number-from-string value))
          (result (and (integerp number) number)))
     (values result (typep result (or specifier type-selector)))))
 
 (defmethod type ((type-selector (eql 'fixnum)) (value string) &key)
-  ; Parses a fixnum number.
   (let* ((number (read-number-from-string value))
          (result (and (typep number 'fixnum) number)))
     (values result (and result t))))
-
-(defmethod type ((type-selector (eql 'mod)) (value string) &key specifier)
-  ; Parses a number.
-  (type 'integer value :specifier specifier))
-
-(defmethod type ((type-selector (eql 'signed-byte)) (value string) &key specifier)
-  ; Parses a number.
-  (type 'integer value :specifier specifier))
-
-(defmethod type ((type-selector (eql 'unsigned-byte)) (value string) &key specifier)
-  ; Parses a number.
-  (let* ((number (read-number-from-string value :unsigned-p t))
-         (result (and (typep number 'unsigned-byte) number)))
-    (values result (typep result (or specifier type-selector)))))
