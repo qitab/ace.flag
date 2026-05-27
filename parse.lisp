@@ -133,20 +133,6 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
   ; Returns the value as string.
   (values value (and value t)))
 
-(defmethod type ((type-selector (eql 'base-string)) (value string) &key)
-  ; Returns the value as string.
-  (values value (and value t)))
-
-(defmethod type ((type-selector (eql 'vector)) (value string) &key specifier)
-  ; Returns the value as string.
-  (when (typep value (or specifier type-selector))
-    (values value (and value t))))
-
-(defmethod type ((type-selector (eql 'simple-array)) (value string) &key specifier)
-  ; Returns the value as string.
-  (when (typep value (or specifier type-selector))
-    (values value (and value t))))
-
 (defmethod type ((type-selector (eql 'keyword)) (value string) &key)
   ; Interns the value into the keyword package.
   (let ((colon (position #\: value :test #'char=)))
@@ -202,16 +188,3 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
          (result (and (typep number 'fixnum) number)))
     (values result (and result t))))
 
-(defmethod type ((type-selector (eql 'mod)) (value string) &key specifier)
-  ; Parses a number.
-  (type 'integer value :specifier specifier))
-
-(defmethod type ((type-selector (eql 'signed-byte)) (value string) &key specifier)
-  ; Parses a number.
-  (type 'integer value :specifier specifier))
-
-(defmethod type ((type-selector (eql 'unsigned-byte)) (value string) &key specifier)
-  ; Parses a number.
-  (let* ((number (read-number-from-string value :unsigned-p t))
-         (result (and (typep number 'unsigned-byte) number)))
-    (values result (typep result (or specifier type-selector)))))
