@@ -203,13 +203,12 @@
                    (export ',flag +flags-package+))))
            ',flag)))))
 
-(defun* no-prefix-p (name &key (start 0))
-  (declare (self (string &key fixnum) boolean))
-  "True if flag NAME starts with the 'no' prefix.
- START is the index on the NAME to look for the prefix."
-  (and (string:prefixp "no" name :start1 start)
-       (> (length name) (+ 2 start))
-       (alpha-char-p (char name (+ 2 start)))))
+(defun no-prefix-p (name)
+  (declare (string name))
+  "True if flag NAME starts with the 'no' prefix."
+  (and (> (length name) 2) ; the whole flag name can't be just "no"
+       (string:prefixp "no" name)
+       (alpha-char-p (char name 2))))
 
 (defun* register (flag names nullablep registry)
   "Registers the FLAG and checks for flag name clashes.
