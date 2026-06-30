@@ -23,7 +23,12 @@
 ;;; All the tests except one expect that NAME gets defined via DEFPARAMETER,
 ;;; whereas by default the flag can't be LET-bound.
 (defmacro test-define (name val doc &rest rest)
-  `(flag:define ,name ,val ,doc :def defparameter ,@rest))
+  (if (getf rest :type)
+      `(flag:define ,name ,val ,doc :def defparameter ,@rest)
+      (let ((assumed-type (cond ((stringp val) 'string)
+                                ((integerp val) 'integer)
+                                (t (type-of val)))))
+        `(flag:define ,name ,val ,doc :def defparameter :type ,assumed-type ,@rest))))
 
 (test-define *boolean* t "Test boolean flag.")
 

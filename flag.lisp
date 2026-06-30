@@ -128,6 +128,8 @@
       (fail "The name ~S of the flag is not a string or symbol." flag))
     (unless (typep doc 'string)
       (fail "The flag ~S requires a help string." doc))
+    (unless type
+      (fail "Flag definition ~S lacks a :TYPE" flag))
     (unless (typep type '(or symbol cons))
       (fail "The type of flag ~S needs to be a proper type specifier. Provided: ~S." flag type))
     (dolist (name names)
@@ -169,14 +171,6 @@
              (value (macro:gensym* :value))
              (specified-type type))
 
-        (unless type
-          ;; Derive type from the type of the default argument.
-          (let ((declaimed (type:declaimed flag)))
-            (setf type (cond ((not (member declaimed '(t nil)))
-                              declaimed)
-                             ((constantp default)
-                              (type:upgraded-type-of (eval default))) ; NOLINT
-                             (t nil)))))
         `(progn
            (let ((nullable (typep nil ',type)))
              (register ',flag ',provided-names nullable *flags*)
@@ -355,7 +349,7 @@ Parameters:
       (let* ((flag (first flag+names))
              (names (sort (rest flag+names) #'string<))
              (doc (documentation flag 'variable))
-             (type (or (get flag 'specified-type) (type:declaimed flag)))
+             (type (or (get flag 'specified-type) (error "can't call type:declaimed on ~S" flag)))
              (value (and (boundp flag) (symbol-value flag)))
              (long-form (or long-form (cdr names)))
              (flag-package (symbol-package flag)))
@@ -448,7 +442,7 @@ Parameters:
   (declare (self (symbol (or null string) &key boolean boolean)
                  (or cons symbol) t boolean boolean))
   (let* ((specified-type (get variable 'specified-type))
-         (type (or specified-type (type:declaimed variable)))
+         (type (or specified-type (error "can't call type:declaimed on ~S" variable)))
          (parser (get variable 'parser)))
 
     (cond ((and no-p (typep nil type))
