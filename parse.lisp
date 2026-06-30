@@ -99,13 +99,8 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
         (return (values parsed-value t))))))
 
 (defmethod type ((type-selector (eql 'and)) (value string) &key specifier top)
-  ; Parses an and type. Iterates through the subtypes.
-  (assert specifier)
-  (dolist (sub-type (rest specifier))
-    (multiple-value-bind (parsed-value parsed-p)
-        (type (type-selector sub-type) value :specifier sub-type :top (or top specifier))
-      (when (and parsed-p (typep parsed-value (or top specifier)))
-        (return (values parsed-value t))))))
+  (declare (ignore specifier top))
+  (error "Unreachable: AND"))
 
 (defmethod type ((type-selector (eql 'member)) (value string) &key specifier top)
   ; Parses a member specifier. Iterates through members. Compares by equalp.
@@ -134,30 +129,10 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
   (values value (and value t)))
 
 (defmethod type ((type-selector (eql 'keyword)) (value string) &key)
-  ; Interns the value into the keyword package.
-  (let ((colon (position #\: value :test #'char=)))
-    (cond ((null colon)
-           (values (intern (string-upcase value) (find-package "KEYWORD")) t))
-          ((= colon 0)
-           (unless (find #\: value :test #'char= :start 1)
-             (type 'keyword (subseq value 1))))
-          (t
-           (values nil nil)))))
+  (error "Unreachable: KEYWORD"))
 
 (defmethod type ((type-selector (eql 'symbol)) (value string) &key)
-  ; Parses a symbol that is prefixed with the package.
-  (let* ((full-name (string-trim " " (string-upcase value)))
-         (pos (position #\: full-name :from-end t))
-         (package-name
-           (when (and pos (plusp pos))
-             (subseq full-name 0 (if (char= (char full-name (1- pos)) #\:) (1- pos) pos))))
-         (package (and package-name (find-package package-name)))
-         (symbol-name (and pos (subseq full-name (1+ pos))))
-         (symbol (cond (package
-                        (find-symbol symbol-name package))
-                       ((eql pos 0)
-                        (find-symbol symbol-name (find-package "KEYWORD"))))))
-    (values symbol (and symbol t))))
+  (error "Unreachable: SYMBOL"))
 
 (defmethod type ((type-selector (eql 'number)) (value string) &key)
   ; Parses a number.

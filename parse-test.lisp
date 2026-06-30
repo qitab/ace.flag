@@ -73,28 +73,6 @@
   (test-not-parsed 'null "YES")
   (test-not-parsed 'null "What-ever"))
 
-(deftest test-parse-type-keyword ()
-  (test-parse-type 'keyword ":keyword" :keyword)
-  (test-parse-type 'keyword "true" :true)
-  (test-parse-type 'keyword "False" :false)
-  (test-parse-type 'keyword "1" :1)
-  (test-parse-type 'keyword "-1" :-1)
-  (test-parse-type 'keyword "nil" :nil)
-  (test-parse-type 'keyword "t" :t))
-
-(deftest test-parse-type-symbol ()
-  (test-parse-type 'symbol "ace.flag.parse-test:test-parse-type" 'test-parse-type)
-  (test-parse-type 'symbol "ace.flag.parse-test::test-parse-type" 'test-parse-type)
-  (test-parse-type 'symbol ":test-parse-type" :test-parse-type)
-
-  (test-not-parsed 'symbol "test:::test-parse-type")
-  (test-not-parsed 'symbol "test-parse-type")
-  (test-not-parsed 'symbol "::test-parse-type")
-  (test-not-parsed 'symbol ":::test-parse-type")
-  (test-not-parsed 'symbol "t")
-  (test-not-parsed 'symbol "nil")
-  (test-not-parsed 'symbol "0"))
-
 (deftest test-parse-type-string ()
   (test-parse-type 'string "" "")
   (test-parse-type 'string "A" "A")
@@ -223,7 +201,6 @@
 
 (deftest test-parse-type-or ()
   (test-parse-type '(or number boolean) "true" t)
-  (test-parse-type '(or boolean keyword) "yes" t)
   (test-parse-type '(or single-float boolean) "t" t)
 
   (test-parse-type '(or integer boolean) "True" t)
@@ -231,14 +208,11 @@
   (test-parse-type '(or null boolean) "T" t)
 
   (test-parse-type '(or number string) "True" "True")
-  (test-parse-type '(or number keyword) "YES" :YES)
 
   (test-parse-type '(or boolean boolean) "nil" nil)
   (test-parse-type '(or null boolean) "no" nil)
 
   (test-parse-type '(or null double-float) "nan" double-float-not-a-number)
 
-  (test-parse-type '(or boolean keyword) "Null" nil)
-  (test-parse-type '(or number boolean) "NIL" nil)
-  (test-parse-type '(or symbol boolean) "NO" nil))
+  (test-parse-type '(or number boolean) "NIL" nil))
 

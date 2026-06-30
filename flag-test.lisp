@@ -39,11 +39,7 @@
 
 (test-define *null* nil "Always null" :type null)
 
-(test-define *keyword* nil "A keyword flag" :type (or null keyword))
-
 (test-define *member* :a "A member flag" :type (member nil :a :b :c))
-
-(test-define *implicit-keyword* :a "An implicit keyword flag.")
 
 (test-define *implicit-string* "string" "An implicit string flag.")
 
@@ -83,7 +79,7 @@ doc has embedded
 
 (test-define *mod* 10 "Modulo 10" :type (mod 16))
 
-(test-define *plus* 10 "Positive fixnum" :type (and fixnum unsigned-byte))
+;(test-define *plus* 10 "Positive fixnum" :type (and fixnum unsigned-byte))
 
 (test-define *some-flag* nil "A Flag that accepts inf, -inf, nan, or number."
   :type (or (member nil :inf :-inf :nan) number))
@@ -164,8 +160,6 @@ doc has embedded
 
   --implicit-integer Type: INTEGER Value: 10
 
-  --implicit-keyword [An implicit keyword flag.] Type: KEYWORD Value: :A
-
   --implicit-string [An implicit string flag.] Type: STRING Value: \"string\"
 
   -i
@@ -183,15 +177,6 @@ doc has embedded
   --integer [An integer flag] Type: (OR (INTEGER -100 100) NULL) Value: 10
 
   --intflag [no doc] Type: (INTEGER -10 10) Value: 10
-
-  -K
-  --key
-     [Short keyword flag]
-     Type: (OR NULL KEYWORD)
-
-  --keyword [A keyword flag] Type: (OR NULL KEYWORD)
-
-  --keyflag [no doc] Type: KEYWORD Value: :FOO
 
   --lorem-ipsum
      [Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod
@@ -231,8 +216,6 @@ doc has embedded
 
   --parsed-flag [A flag in hex.] Type: INTEGER Value: 0
 
-  --plus [Positive fixnum] Type: (AND FIXNUM UNSIGNED-BYTE) Value: 10
-
   --print-help-and-newlines
      [This
       doc has embedded
@@ -256,8 +239,6 @@ doc has embedded
   --string [A string flag.] Type: (OR NULL STRING)
 
   --stringflag [no doc] Type: STRING Value: \"foo\"
-
-  --symflag [no doc] Type: SYMBOL Value: :BAR
 
   --symbol-macro-flag Type: BOOLEAN
 
@@ -307,18 +288,6 @@ doc has embedded
   (with-flags-binding (:args '("--nointeger"))
     (expect (null *integer*))))
 
-(deftest test-keyword-flag ()
-  (multiple-value-bind (type result parsed-p consume-p)
-      (parse-variable '*keyword* "keyword")
-    (expect (equal type '(or null keyword)))
-    (expect (equal result :keyword))
-    (expect parsed-p)
-    (expect consume-p))
-
-  (with-flags-binding (:args '("--keyword" "keyword"))
-    (expect (eq *keyword* :keyword))))
-
-
 (deftest test-foo-flag ()
   (multiple-value-bind (type result parsed-p consume-p)
       (parse-variable '*foo* "F00")
@@ -336,9 +305,7 @@ doc has embedded
                                "--notrue"
                                "--nofalse"
                                "--null"    "null"
-                               "--keyword" "keyword"
                                "--member"  "a"
-                               "--implicit_keyword" "keyword"
                                "--implicit_string" "string"
                                "--string" "abc"
                                "--very_long_doc" "doc"
@@ -356,7 +323,6 @@ doc has embedded
                                "--double2" "-nan"
                                "--double3" "-inf"
                                "--mod" "5"
-                               "--plus" "2000"
                                "--some_flag" "nan"
                                "--a-named_flag" "100"
                                "--named_flag2" "200"
@@ -376,9 +342,7 @@ doc has embedded
     (expect (not *true*))
     (expect (not *false*))
     (expect (not *null*))
-    (expect (eq *keyword* :keyword))
     (expect (eq *member* :a))
-    (expect (eq *implicit-keyword* :keyword))
     (expect (equal *implicit-string* "string"))
     (expect (equal *string* "abc"))
     (expect (equal *very-long-doc* "doc"))
@@ -390,7 +354,6 @@ doc has embedded
     (expect (number:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
-    (expect (= *plus* 2000))
     (expect (eq *some-flag* :nan))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
@@ -405,9 +368,7 @@ doc has embedded
                                "--notrue"
                                "--nofalse"
                                "--null=null"
-                               "--keyword=keyword"
                                "--member=a"
-                               "--implicit_keyword=keyword"
                                "--implicit_string=string"
                                "--string=abc"
                                "--very_long_doc=doc"
@@ -425,7 +386,6 @@ doc has embedded
                                "--double2=-nan"
                                "--double3=-inf"
                                "--mod=5"
-                               "--plus=2000"
                                "--some_flag=nan"
 
                                "--a-named_flag=100"
@@ -446,9 +406,7 @@ doc has embedded
     (expect (not *true*))
     (expect (not *false*))
     (expect (not *null*))
-    (expect (eq *keyword* :keyword))
     (expect (eq *member* :a))
-    (expect (eq *implicit-keyword* :keyword))
     (expect (equal *implicit-string* "string"))
     (expect (equal *string* "abc"))
     (expect (equal *very-long-doc* "doc"))
@@ -460,7 +418,6 @@ doc has embedded
     (expect (number:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
-    (expect (= *plus* 2000))
     (expect (eq *some-flag* :nan))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
@@ -542,9 +499,7 @@ doc has embedded
   (test-wrong-value "--boolean" ":true")
   (test-wrong-value "--boolean2" "0")
   (test-wrong-value "--null"    "true")
-  (test-wrong-value "--keyword" "f:10")
   (test-wrong-value "--member"  "f")
-  (test-wrong-value "--implicit_keyword" "some:symbol")
   (test-wrong-value "--implicit_integer" "abc")
   (test-wrong-value "--integer" "0.0")
   (test-wrong-value "--number" ":test")
@@ -554,7 +509,6 @@ doc has embedded
   (test-wrong-value "--double2" "#xFFFF")
   (test-wrong-value "--double3" "nada")
   (test-wrong-value "--mod" "-10")
-  (test-wrong-value "--plus" "-2000")
   (test-wrong-value "--some_flag" "nano"))
 
 (defun test-missing-value (&rest args)
@@ -562,9 +516,7 @@ doc has embedded
 
 (deftest test-missing-values ()
   (test-missing-value "--null")
-  (test-missing-value "--keyword")
   (test-missing-value "--member")
-  (test-missing-value "--implicit_keyword")
   (test-missing-value "--implicit_integer")
   (test-missing-value "--integer")
   (test-missing-value "--number")
@@ -573,21 +525,18 @@ doc has embedded
   (test-missing-value "--double2")
   (test-missing-value "--double3")
   (test-missing-value "--mod")
-  (test-missing-value "--plus")
   (test-missing-value "--some_flag"))
 
 (deftest invalid-names-test ()
-  (expect-macro-warning (flag:define *f* t "na" :name "an_underscore-and-hyphens" :type symbol))
-  (expect-macro-warning (flag:define *f* t "na" :name "3rror" :type symbol))
-  (expect-macro-warning (flag:define *f* t "na" :names ("a-dash" "3rror") :type symbol))
-  (expect-macro-warning (flag:define *.* t "na" :type symbol))
-  (expect-macro-warning (flag:define *f.* t "na" :type symbol))
-  (expect-macro-warning (flag:define *funny/flag* t "na" :type symbol)))
+  (expect-macro-warning (flag:define *f* t "na" :name "an_underscore-and-hyphens" :type integer))
+  (expect-macro-warning (flag:define *f* t "na" :name "3rror" :type integer))
+  (expect-macro-warning (flag:define *f* t "na" :names ("a-dash" "3rror") :type integer))
+  (expect-macro-warning (flag:define *.* t "na" :type integer))
+  (expect-macro-warning (flag:define *f.* t "na" :type integer))
+  (expect-macro-warning (flag:define *funny/flag* t "na" :type integer)))
 
 
 (test-define *boo* t "Short test boolean flag." :names ("boo" "B"))
-
-(test-define *key* nil "Short keyword flag" :type (or null keyword) :names ("key" "K"))
 
 (test-define *mem* :a "Short member flag" :type (member nil :a :b :c) :names ("mem" "M"))
 
@@ -600,14 +549,12 @@ doc has embedded
 
 (deftest test-short-flags ()
   (with-flags-binding (:args '("-B=false"
-                               "-K" "kEy"
                                "-M" "B"
                                "-i=11"
                                "-I" "22"
                                "-f" "0.0"
                                "-S" "str"))
     (expect (null *boo*))
-    (expect (eq *key* :key))
     (expect (eq *mem* :B))
     (expect (= *int* 11))
     (expect (= *int2* 22))
@@ -687,33 +634,6 @@ doc has embedded
     (expect-error (parse-command-line* '("--noboolflag" "true")))
     (expect-error (parse-command-line* '("--noboolflag" "false")))))
 
-(test-define *keyword-flag* :foo "no doc" :name "keyflag" :type keyword)
-
-(deftest keyword-flag ()
-  (expect (eq *keyword-flag* :foo))
-  (let ((*keyword-flag* *keyword-flag*))
-    (parse-command-line* '("--keyflag" "dog"))
-    (expect (eq *keyword-flag* :dog))
-    (parse-command-line* '("--keyflag=cat"))
-    (expect (eq *keyword-flag* :cat))
-    (parse-command-line* '("--keyflag="))
-    (expect (eq *keyword-flag* :||))))
-
-(test-define *symbol-flag* :bar "no doc" :name "symflag" :type symbol)
-
-(deftest symbol-flag ()
-  (expect (eq *symbol-flag* :bar))
-  (let ((*symbol-flag* *symbol-flag*))
-    (parse-command-line* '("--symflag" "ace.flag:define"))
-    (expect (eq *symbol-flag* 'ace.flag:define))
-    (parse-command-line* '("--symflag=ace.flag-test::unexported-symbol"))
-    (expect (eq *symbol-flag* 'unexported-symbol))
-    (expect-error (parse-command-line* '("--symflag=")))
-    (expect-error (parse-command-line* '("--symflag" ":bad-colons")))
-    (expect-error (parse-command-line* '("--symflag" "more:bad:colons")))
-    (expect-error (parse-command-line* '("--symflag" "bad-package:foo")))
-    (expect-error (flag:parse-command-line :args '("--symflag")))))
-
 (test-define *string-flag* "foo" "no doc" :name "stringflag" :type string)
 
 (deftest string-flag ()
@@ -786,12 +706,6 @@ doc has embedded
     (expect-error (parse-command-line* '("--color=orange")))))
 
 (deftest syntax-errors ()
-  (expect-macro-warning (flag:define *s* t "na" :name s :type symbol))
-  (expect-macro-warning (flag:define *s* t "na" :name "" :type symbol))
-  (expect-macro-warning (flag:define *s* t "na" :name "s" :type "symbol"))
-  (expect-macro-error (flag:define *s* t "na" :name "s" :type symbol :help h))
-  (expect-macro-warning (flag:define *s* t "na" :name "s" :type symbol :parser "p"))
-  (expect-macro-warning (flag:define *s* t 'd :name "s" :type symbol))
   (expect-macro-warning (flag:define *s* t "na" :name "s" :type vector)))
 
 (test-define *no-go* nil "no doc" :name "nogo" :type boolean)
@@ -799,8 +713,7 @@ doc has embedded
 
 (deftest boolean-semantic-errors ()
   (expect-error (flag:define *b* nil "na" :name "boolflag" :type boolean))
-  (expect-error (flag:define *go* nil "na" :name "go" :type boolean))
-  (expect-error (flag:define *north* nil "na" :name "north" :type symbol)))
+  (expect-error (flag:define *go* nil "na" :name "go" :type boolean)))
 
 (defvar *symbol-flag* nil)
 

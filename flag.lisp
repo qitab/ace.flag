@@ -130,6 +130,12 @@
       (fail "The flag ~S requires a help string." doc))
     (unless type
       (fail "Flag definition ~S lacks a :TYPE" flag))
+    (labels ((treefind (elt tree)
+               (cond ((atom tree) (eq elt tree))
+                     (t (or (treefind elt (car tree)) (treefind elt (cdr tree)))))))
+      (let ((expansion (sb-ext:typexpand type)))
+        (when (or (treefind 'keyword expansion) (treefind 'symbol expansion))
+          (error "Don't parse flag ~S as a symbol. Use string instead" flag))))
     (unless (typep type '(or symbol cons))
       (fail "The type of flag ~S needs to be a proper type specifier. Provided: ~S." flag type))
     (dolist (name names)
