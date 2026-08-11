@@ -14,8 +14,7 @@
                     (#:flag #:ace.flag))
   (:use #:common-lisp #:ace.test)
   (:import-from #:ace.flag
-                #:parse-variable)
-  (:import-from #:ace.core.etc #:define-constant))
+                #:parse-variable))
 
 
 (in-package #:ace.flag-test)
@@ -587,12 +586,11 @@ doc has embedded
 
 ;;; LEGACY tests form com.ace.flag
 
-(define-constant +before+ '("before" "-a" "-" "--no" "") :test #'equal)
-(define-constant +after+ '("--after" "-b" "-" "--no" "") :test #'equal)
-(define-constant +skip+ '("--" "--boolflag" "--keyflag=a" "--symflag=b" "--stringflag=c"
-                   "--intflag=d" "--sfflag=e" "--dfflag=f" "--color=g")
-  :test #'equal)
-(define-constant +expected-unparsed-flags+ (append +before+ +after+ +skip+) :test #'equal)
+(defvar +before+ '("before" "-a" "-" "--no" ""))
+(defvar +after+ '("--after" "-b" "-" "--no" ""))
+(defvar +skip+ '("--" "--boolflag" "--keyflag=a" "--symflag=b" "--stringflag=c"
+                   "--intflag=d" "--sfflag=e" "--dfflag=f" "--color=g"))
+(defvar +expected-unparsed-flags+ (append +before+ +after+ +skip+))
 
 (defun parse-command-line* (arguments)
   (let ((command-line (append +before+ arguments +after+ +skip+)))
