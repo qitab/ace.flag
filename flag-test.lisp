@@ -527,12 +527,13 @@ doc has embedded
   (test-missing-value "--some_flag"))
 
 (deftest invalid-names-test ()
-  (expect-macro-warning (flag:define *f* t "na" :name "an_underscore-and-hyphens" :type integer))
-  (expect-macro-warning (flag:define *f* t "na" :name "3rror" :type integer))
-  (expect-macro-warning (flag:define *f* t "na" :names ("a-dash" "3rror") :type integer))
-  (expect-macro-warning (flag:define *.* t "na" :type integer))
-  (expect-macro-warning (flag:define *f.* t "na" :type integer))
-  (expect-macro-warning (flag:define *funny/flag* t "na" :type integer)))
+  (expect-warning
+   (macroexpand '(flag:define *f* t "na" :name "an_underscore-and-hyphens" :type integer)))
+  (expect-warning (macroexpand '(flag:define *f* t "na" :name "3rror" :type integer)))
+  (expect-warning (macroexpand '(flag:define *f* t "na" :names ("a-dash" "3rror") :type integer)))
+  (expect-warning (macroexpand '(flag:define *.* t "na" :type integer)))
+  (expect-warning (macroexpand '(flag:define *f.* t "na" :type integer)))
+  (expect-warning (macroexpand '(flag:define *funny/flag* t "na" :type integer))))
 
 
 (test-define *boo* t "Short test boolean flag." :names ("boo" "B"))
@@ -704,7 +705,7 @@ doc has embedded
     (expect-error (parse-command-line* '("--color=orange")))))
 
 (deftest syntax-errors ()
-  (expect-macro-warning (flag:define *s* t "na" :name "s" :type vector)))
+  (expect-warning (macroexpand '(flag:define *s* t "na" :name "s" :type vector))))
 
 (test-define *no-go* nil "no doc" :name "nogo" :type boolean)
 (test-define *rth* nil "no doc" :name "rth" :type boolean)
