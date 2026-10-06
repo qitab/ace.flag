@@ -491,7 +491,7 @@ doc has embedded
     (expect *boolean2*)))
 
 (defun test-wrong-value (&rest args)
-  (assert-error (flag:parse-command-line :args args :setp nil :normalize t)))
+  (expect-error (flag:parse-command-line :args args :setp nil :normalize t)))
 
 (deftest test-wrong-values ()
   (test-wrong-value "--boolean" "10")
@@ -511,7 +511,7 @@ doc has embedded
   (test-wrong-value "--some_flag" "nano"))
 
 (defun test-missing-value (&rest args)
-  (assert-error (flag:parse-command-line :args args :setp nil :normalize t)))
+  (expect-error (flag:parse-command-line :args args :setp nil :normalize t)))
 
 (deftest test-missing-values ()
   (test-missing-value "--null")
