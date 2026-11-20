@@ -89,7 +89,7 @@
   FLAG          - Defines the Lisp parameter that will store the flag.
                   When the symbol specified is a string or a keyword,
                   the flag is interned into and exported from the FLAGS package.
-  DEFAULT       - The default value for the flag. May determine the type if not provided.
+  DEFAULT       - The default value for the flag.
   DOC           - The documentation for the variable that also shows in help.
   TYPE          - Type to be assigned to the variable.
   NAME, NAMES   - The names of the flag to be used at the command-line.
@@ -101,8 +101,8 @@
                   If parser is not specified, a default parser for the flag type maybe invoked
                   using type-utils:parse-type method.
   DEF           - The defining operation used to define the flag.
-                  Default is DEFPARAMETER. If NIL, the flag variable is not defined by this form
-                  and the default value is ignored.
+                  Default is SB-EXT:DEFINE-LOAD-TIME-GLOBAL. If NIL, the flag variable is
+                  not defined by this form and the default value is ignored.
   SETTER        - The setter used to set the flag. If NIL, a default SETF setter is used."
 
   (when name (push name names))
@@ -127,9 +127,6 @@
         (fail "The additional names of the flag ~S need to be strings. Provided: ~S." flag name))
       (unless (plusp (length name))
         (fail "One of the names ~S for the flag ~S is empty." names flag)))
-    (unless (or (null type) (ace.core.type:unknownp type)
-                (not (constantp default)) (typep (eval default) type)) ; NOLINT
-      (fail "The flag ~S default ~S is not of the required type: ~S." flag default type))
 
     (unless (symbolp parser)
       (fail "The parser ~S specified for the flag ~S is not a symbol." parser flag))
@@ -158,8 +155,7 @@
 
       (let* ((provided-names (or names (list flag-variable-name)))
              (names (mapcar #'normalized-flag-name provided-names))
-             (value '#:value)
-             (specified-type type))
+             (value '#:value))
 
         `(progn
            (let ((nullable (typep nil ',type)))
@@ -167,12 +163,11 @@
              (register ',flag ',names nullable *flags-normalized*))
            ,@(when parser
                `((setf (get ',flag 'parser) ',parser)))
-           ,@(when specified-type
-               `((setf (get ',flag 'specified-type) ',specified-type)))
+           (setf (get ',flag 'specified-type) ',type)
 
            ,@(when def
                `((declaim (type ,type ,flag))
-                 (,def ,flag ,default ,doc)))
+                 (,def ,flag (the ,type ,default) ,doc)))
 
            (eval-when (:load-toplevel)
              (setf (get ',flag 'setter)
@@ -360,15 +355,7 @@ Parameters:
 (defun command-line ()
   "Returns the full command-line as a list with program name and arguments."
   (declare (values list))
-  #+sbcl sb-ext:*posix-argv*
-  #+clisp (coerce (ext:argv) 'list)
-  #+abcl ext:*command-line-argument-list*
-  #+clozure (ccl::command-line-arguments)
-  #+gcl si:*command-args*
-  #+ecl (loop for i from 0 below (si:argc) collect (si:argv i))
-  #+cmu extensions:*command-line-strings*
-  #+allegro (sys:command-line-arguments)
-  #+lispworks sys:*line-arguments-list*)
+  sb-ext:*posix-argv*)
 
 ;;;
 ;;; Flag parsing ...

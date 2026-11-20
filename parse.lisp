@@ -14,7 +14,6 @@
   (:shadow #:type)
   (:use #:common-lisp
         #:ace.core.number)
-  (:import-from #:ace.core.type #:expand)
   (:export #:type
            #:true-value-string-p
            #:false-value-string-p))
@@ -62,7 +61,7 @@ The TYPE-SELECTOR is the type-specifier itself or the car of the type-specifier.
                (type (type-selector specifier) value :specifier specifier)
              (if parsed-p
                  (values parsed-value t)
-                 (let ((expanded (expand specifier)))
+                 (let ((expanded (sb-ext:typexpand specifier)))
                    (unless (equalp specifier expanded)
                      (type (type-selector expanded) value :specifier expanded)))))))
 
