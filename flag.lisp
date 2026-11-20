@@ -9,7 +9,6 @@
 ;;; is close to ABSL binary flag parsing.
 ;;;
 ;;; The parser supports flags defined through the FLAG:DEFINE macro.
-;;; ace.flag:print-help is a utility that formats the flags registered with define-flag.
 ;;;
 ;;; Flags whose type is defined or expands to 'boolean' are considered boolean flags and this
 ;;; affects how those are parsed. Especially, the '--no' sets the flag to 'nil' and no other
@@ -26,15 +25,9 @@
 
 (defpackage #:ace.flag
   (:use #:common-lisp
-        #:ace.core.defun
         #:ace.core.check)
   (:local-nicknames (#:string #:ace.core.string)
-                    (#:macro #:ace.core.macro)
-                    (#:number #:ace.core.number)
-                    (#:type #:ace.core.type)
                     (#:parse #:ace.flag.parse))
-  (:import-from #:ace.core.check #:check)
-  (:import-from #:ace.core.collect #:with-collectors)
   (:export #:command-line
            #:parse-command-line
            #:print-help
@@ -55,13 +48,13 @@
 (defvar *flags-normalized* (make-hash-table :test #'equal)
   "Stores a map from flag names in the normalized form to variable symbols.")
 
-(defun* acceptable-flag-name-p (name)
+(defun acceptable-flag-name-p (name)
   "True if the NAME is in lower case, starts with an alpha character, contains only alphanumeric
  characters, dots, underscores, or hyphens, and ends with an alphanumeric character.
  The name is not allowed to contain both underscores and hyphens. Single-letter flag names
  may be uppercase.
  "
-  (declare (self foldable (string) boolean))
+  (declare (string name) (values boolean))
   (let ((length (length name)))
     (cond ((> length 1)
            (and (every (lambda (c) (or (and (lower-case-p c) (alpha-char-p c))
@@ -75,9 +68,9 @@
           ((= length 1)
            (alpha-char-p (char name 0))))))
 
-(defun* normalized-flag-name (name)
+(defun normalized-flag-name (name)
   "Trims '*' from the NAME. Replaces '_' with '-'. Sets the string to lower case."
-  (declare (self foldable (string) (or null string)))
+  (declare (string name) (values (or null string)))
   (let ((trimmed (string-trim "*" (substitute #\- #\_ name))))
     (when (> (length trimmed) 1)
       (setf trimmed (string-downcase trimmed)))
@@ -110,16 +103,7 @@
   DEF           - The defining operation used to define the flag.
                   Default is DEFPARAMETER. If NIL, the flag variable is not defined by this form
                   and the default value is ignored.
-  SETTER        - The setter used to set the flag. If NIL, a default SETF setter is used.
-
- If no TYPE has been specified the type of the flag is derived from the DEFAULT value by following:
-    BOOLEAN       -> BOOLEAN
-    BIT           -> INTEGER
-    FIXNUM        -> INTEGER
-    CONS          -> LIST
-    any STRING    -> STRING
-    any CHARACTER -> CHARACTER
-    otherwise     -> (type-of value)."
+  SETTER        - The setter used to set the flag. If NIL, a default SETF setter is used."
 
   (when name (push name names))
   (flet ((fail (&rest args)
@@ -143,7 +127,7 @@
         (fail "The additional names of the flag ~S need to be strings. Provided: ~S." flag name))
       (unless (plusp (length name))
         (fail "One of the names ~S for the flag ~S is empty." names flag)))
-    (unless (or (null type) (type:unknownp type)
+    (unless (or (null type) (ace.core.type:unknownp type)
                 (not (constantp default)) (typep (eval default) type)) ; NOLINT
       (fail "The flag ~S default ~S is not of the required type: ~S." flag default type))
 
@@ -174,7 +158,7 @@
 
       (let* ((provided-names (or names (list flag-variable-name)))
              (names (mapcar #'normalized-flag-name provided-names))
-             (value (macro:gensym* :value))
+             (value '#:value)
              (specified-type type))
 
         `(progn
@@ -210,14 +194,14 @@
        (string:prefixp "no" name)
        (alpha-char-p (char name 2))))
 
-(defun* register (flag names nullablep registry)
+(defun register (flag names nullablep registry)
   "Registers the FLAG and checks for flag name clashes.
  Arguments:
  FLAG - is the symbol name for the variable,
  NAMES - is a list of strings to be used as a flag name on the command line,
  NULLABLEP - indicates that the type of the flag can accept the NULL value.
  REGISTRY - is the hashtable that maps names to variable symbols."
-  (declare (self (symbol list boolean) symbol))
+  (declare (symbol flag) (list names) (values symbol))
   (dolist (name names)
     ;; Check for conflicting flag names.
     (unless (or (member (gethash name registry) (list nil flag) :test #'eq)
@@ -268,7 +252,7 @@
 
 (defgeneric print-help (&key stream right-margin indent indent-help parentheses
                         prefix normalize include-packages
-                        exclude-packages documentation type)
+                        exclude-packages)
   (:documentation
    "Prints help for flags registered using the DEFINE macro.
 The flags are ordered by package name and by the symbol-name.
@@ -284,10 +268,7 @@ Parameters:
  NORMALIZE - if non-nil, the names of flags are printed in the normalized form.
              Normalized form uses hyphens and lower-case characters.
  INCLUDE-PACKAGES - a list of package designators to print flags from.
- EXCLUDE-PACKAGES - a list of packages excluded from the PRINT-HELP output.
- DOCUMENTATION - if :REQUIRED (default), only flags with a documentation strings are printed.
- TYPE - only flags with values of the type are printed. Default: (or number string symbol).
- LONG-FORM - if true print each flag and its help on multiple lines."))
+ EXCLUDE-PACKAGES - a list of packages excluded from the PRINT-HELP output."))
 
 (defmethod print-help (&key
                        (stream *standard-output*)
@@ -298,10 +279,7 @@ Parameters:
                        (prefix "--")
                        (normalize nil)
                        (include-packages nil)
-                       (exclude-packages *print-help-exclude-packages*)
-                       (documentation :required)
-                       (type '(or number string symbol))
-                       (long-form nil))
+                       (exclude-packages *print-help-exclude-packages*))
   (declare (stream stream)
            (fixnum right-margin indent indent-help)
            (list include-packages exclude-packages))
@@ -327,15 +305,7 @@ Parameters:
              (when package
                (if (null include-packages)
                    (not (member (package-name package) exclude-packages :test #'string=))
-                   (member (package-name package) include-packages :test #'string=))))
-           (add-flag (sym package)
-             (when (and sym package (boundp sym) (eq (symbol-package sym) package)
-                        (or (type:specialp sym) (type:globalp sym))
-                        (not (gethash sym flags->names))
-                        (or (not (eq documentation :required))
-                            (documentation sym 'variable))
-                        (typep (symbol-value sym) type))
-               (pushnew (format nil "~(~S~)" sym) (gethash sym flags->names) :test #'equalp))))
+                   (member (package-name package) include-packages :test #'string=)))))
 
       (maphash (lambda (name flag)
                  (when (included-package-p (symbol-package flag))
@@ -357,7 +327,6 @@ Parameters:
              (doc (documentation flag 'variable))
              (type (or (get flag 'specified-type) (error "can't call type:declaimed on ~S" flag)))
              (value (and (boundp flag) (symbol-value flag)))
-             (long-form (or long-form (cdr names)))
              (flag-package (symbol-package flag)))
         (unless (eq flag-package last-package)
           (format stream "~:[~;~%~]Flags from ~(~A~):~%"
@@ -367,7 +336,7 @@ Parameters:
         (pprint-logical-block (stream nil :prefix line-prefix)
           (dolist (name names)
             (let ((prefix (if (= 1 (length name)) "-" prefix)))
-              (format stream "~@<~@;~A~A~:[~_~;~:@_~]~:>" prefix name long-form)))
+              (format stream "~@<~@;~A~A~:[~_~;~:@_~]~:>" prefix name (cdr names))))
           (when (plusp (length doc))
             (format stream "~vT~@[~C~]~@<~@;~A~@[~C~]~:>"
                     indent-help open-char doc close-char))
@@ -388,9 +357,9 @@ Parameters:
 ;;; Command line ...
 ;;;
 
-(defun* command-line ()
+(defun command-line ()
   "Returns the full command-line as a list with program name and arguments."
-  (declare (self () list))
+  (declare (values list))
   #+sbcl sb-ext:*posix-argv*
   #+clisp (coerce (ext:argv) 'list)
   #+abcl ext:*command-line-argument-list*
@@ -410,14 +379,14 @@ Parameters:
  The normalized form contains hyphens in place of underscores, trims '*' characters,
  and puts the name into lower case for flags names longer than one character.")
 
-(defun* flag-info (arg)
+(defun flag-info (arg)
   "Search for a variable and a type corresponding to the flag-name as specified by ARG.
  The flag-name is optionally put into the normalized form (see *NORMALIZE*).
  Returns (values flag-name var type no-p):
   flag-name - the argument with '_' replaced by '-' with optionally removed '--' or '--no' prefix.
   var - the variable symbol.
   no-p - indicator that the flag-name was prefixed with 'no'."
-  (declare (self (string) (or null string) symbol boolean))
+  (declare (string arg) (values (or null string) symbol boolean))
   (let ((arg-no-dashes (cond ((and (> (length arg) 2) (string:prefixp "--" arg))
                               (subseq arg 2))
                              ((and (> (length arg) 1) (string:prefixp "-" arg))
@@ -435,18 +404,18 @@ Parameters:
           (values (or flag-name arg-no-dashes) variable no-p))
         (values nil nil nil))))
 
-(defun* boolean-type-p (type)
+(defun boolean-type-p (type)
   "Returns true if the TYPE is a boolean type-specifier."
-  (declare (self ((or cons symbol)) boolean))
+  (declare ((or cons symbol) type))
   (and (subtypep type 'boolean) (values (subtypep 'boolean type))))
 
-(defun* parse-variable (variable value &key no-p equal-sign-p)
+(defun parse-variable (variable value &key no-p equal-sign-p)
   "Parses a string VALUE accordingly to the type of a VARIABLE.
  NO-P means that the flag had a 'no' prefix.
  EQUAL-SIGN-P means that the flag and value pair have been specified with the '=' sign.
  Returns (values type value parsed-p consume-p)."
-  (declare (self (symbol (or null string) &key boolean boolean)
-                 (or cons symbol) t boolean boolean))
+  (declare (symbol variable) ((or null string) value)
+           (values (or cons symbol) t boolean boolean))
   (let* ((specified-type (get variable 'specified-type))
          (type (or specified-type (error "can't call type:declaimed on ~S" variable)))
          (parser (get variable 'parser)))
@@ -487,7 +456,7 @@ Parameters:
   SETP - if true, the variables are set as they are parsed,
   NORMALIZE - if true, the names of arguments are put into a normalized form.
  Returns (values unparsed-args parsed-flag-variables parsed-values)."
-  (with-collectors (parsed-vars parsed-values unparsed)
+  (ace.core.collect:with-collectors (parsed-vars parsed-values unparsed)
     (loop (unless args (return))
           (let* ((arg (pop args))
                  (pos= (position #\= arg)) ; Support the --flag=value syntax.
