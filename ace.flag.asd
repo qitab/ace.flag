@@ -18,5 +18,4 @@
   ((:module "flag"
     :serial t
     :pathname ""
-    :components ((:file "parse")
-                 (:file "flag")))))
+    :components ((:file "flag")))))

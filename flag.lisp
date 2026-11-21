@@ -17,23 +17,114 @@
 ;;; Finally, boolean flags accept a set of boolean indicators: "yes", "no", "true", "false", ...
 ;;; which are consumed by the boolean flag at parsing.
 ;;;
-;;; Flags may accept any combination of types.
-;;; By default the values parsed are: numbers, symbols, keywords, strings.
 ;;; Numbers are parsed in C++/Java syntax allowing for non-finite values ("inf", "-inf", "nan").
 ;;;
 ;;;
 
 (defpackage #:ace.flag
   (:use #:common-lisp
-        #:ace.core.check)
-  (:local-nicknames (#:string #:ace.core.string)
-                    (#:parse #:ace.flag.parse))
+        #:ace.core.check
+        #:sb-kernel)
+  (:local-nicknames (#:string #:ace.core.string))
   (:export #:command-line
            #:parse-command-line
            #:print-help
            #:define))
 
 (in-package #:ace.flag)
+
+;;; Some string-parsing things
+
+(defun true-value-string-p (value)
+  "Tests that the string VALUE is one of the designators for a true boolean value."
+  (declare (optimize (safety 1))) ; re-enable type-checking if it was 0
+  (declare (string value) (values boolean &optional))
+  (and (member value '("true" "yes" "t") :test #'equalp) t))
+
+(defun false-value-string-p (value)
+  "Tests that the string VALUE is one of the designators for a false boolean value."
+  (declare (optimize (safety 1))) ; re-enable type-checking if it was 0
+  (declare (string value) (values boolean &optional))
+  (and (member value '("false" "null" "nil" "no") :test #'equalp) t))
+
+(defun check-compound-specifier (specifier)
+  "Checks that SPECIFIER (after top-level deftype expansion) does not use AND,
+and uses OR only as a two-arm nullable union (OR NULL T) or (OR T NULL)."
+  (let ((spec (sb-ext:typexpand specifier)))
+    (when (consp spec)
+      (case (first spec)
+        (and
+         (error "Conjunction type ~S is not supported as a flag type." specifier))
+        (or
+         (let ((arms (rest spec))
+               (null-type (specifier-type 'null)))
+           (unless (and (= (length arms) 2)
+                        (let ((c1 (specifier-type (first arms)))
+                              (c2 (specifier-type (second arms))))
+                          (if (type= c1 null-type)
+                              (not (type= c2 null-type))
+                              (type= c2 null-type))))
+             (error "Union flag type ~S must be of the form (OR NULL <type>) or (OR <type> NULL)."
+                    specifier))))))))
+
+(defun acceptable-ctype-p (ctype)
+  "Returns true if CTYPE is supported by the built-in flag parser:
+BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
+(including FIXNUM), SINGLE-FLOAT, DOUBLE-FLOAT, or a nullable union with NULL."
+  (let* ((null-type (specifier-type 'null))
+         (nullable-p (csubtypep null-type ctype))
+         (non-null (if nullable-p
+                       (type-difference ctype null-type)
+                       ctype)))
+    (and (or (and (member-type-p non-null)
+                  (every #'symbolp (member-type-members non-null)))
+             (type= non-null (specifier-type 'string))
+             (and (numeric-type-p non-null)
+                  (eq (numeric-type-complexp non-null) :real)
+                  (member (numeric-type-class non-null) '(integer float))))
+         t)))
+
+(defun parse-as-type (specifier value)
+  "Parses string VALUE according to SPECIFIER. Returns (values parsed-value parsed-p)."
+  (declare (type (or symbol cons) specifier) (type string value))
+  (check-compound-specifier specifier)
+  (let* ((ctype (specifier-type specifier))
+         (null-type (specifier-type 'null))
+         (nullable-p (csubtypep null-type ctype))
+         (non-null (if nullable-p
+                       (type-difference ctype null-type)
+                       ctype)))
+    (cond ((type= ctype (specifier-type 'boolean))
+           (cond ((true-value-string-p value)  (values t t))
+                 ((false-value-string-p value) (values nil t))
+                 (t (values nil nil))))
+          ((and (member-type-p non-null)
+                (every #'symbolp (member-type-members non-null)))
+           (let ((found (find value (member-type-members non-null)
+                              :key #'symbol-name :test #'string-equal)))
+             (cond (found (values found t))
+                   ((and nullable-p (false-value-string-p value)) (values nil t))
+                   (t (values nil nil)))))
+          ((type= non-null (specifier-type 'string))
+           (values value t))
+          ((and (numeric-type-p non-null)
+                (eq (numeric-type-complexp non-null) :real)
+                (member (numeric-type-class non-null) '(integer float)))
+           (let* ((number (ace.core.number:read-number-from-string value))
+                  (coerced
+                   (ecase (numeric-type-class non-null)
+                     (integer (and (integerp number) number))
+                     (float (and (numberp number)
+                                 (ignore-errors
+                                  (coerce number (numeric-type-format non-null))))))))
+             (cond ((and coerced (ctypep coerced non-null))
+                    (values coerced t))
+                   ((and nullable-p (false-value-string-p value))
+                    (values nil t))
+                   (t
+                    (values nil nil)))))
+          (t
+           (error "Unsupported flag type specifier: ~S" specifier)))))
 
 ;;;
 ;;; Defining flags ...
@@ -78,7 +169,8 @@
 
 (defmacro define (flag default doc &key type name names parser
                                    (def 'sb-ext:define-load-time-global)
-                                   setter)
+                                   setter
+                                   &aux parsed-type)
   "Defines a flag and registers it as such under a name with stripped '*' and '-' in place of '_'.
  Flags in the FLAGS package are external. Note that the default name of the flag at command line
  does not include the package specifier and thus flags that share the same name may rise conflicts.
@@ -114,22 +206,22 @@
       (fail "The flag ~S requires a help string." doc))
     (unless type
       (fail "Flag definition ~S lacks a :TYPE" flag))
-    (labels ((treefind (elt tree)
-               (cond ((atom tree) (eq elt tree))
-                     (t (or (treefind elt (car tree)) (treefind elt (cdr tree)))))))
-      (let ((expansion (sb-ext:typexpand type)))
-        (when (or (treefind 'keyword expansion) (treefind 'symbol expansion))
-          (error "Don't parse flag ~S as a symbol. Use string instead" flag))))
     (unless (typep type '(or symbol cons))
       (fail "The type of flag ~S needs to be a proper type specifier. Provided: ~S." flag type))
+    (unless (symbolp parser)
+      (fail "The parser ~S specified for the flag ~S is not a symbol." parser flag))
+    (setq parsed-type (specifier-type type))
+    (when (csubtypep (specifier-type 'keyword) parsed-type)
+      (error "Don't parse flag ~S as a symbol. Use string instead" flag))
+    (unless parser
+      (check-compound-specifier type)
+      (unless (acceptable-ctype-p parsed-type)
+        (error "Unsupported flag type ~S for flag ~S." type flag)))
     (dolist (name names)
       (unless (stringp name)
         (fail "The additional names of the flag ~S need to be strings. Provided: ~S." flag name))
       (unless (plusp (length name))
         (fail "One of the names ~S for the flag ~S is empty." names flag)))
-
-    (unless (symbolp parser)
-      (fail "The parser ~S specified for the flag ~S is not a symbol." parser flag))
 
     (when (typep flag '(or keyword string))
       (export (setf flag (intern (string flag) +flags-package+)) +flags-package+))
@@ -155,12 +247,12 @@
 
       (let* ((provided-names (or names (list flag-variable-name)))
              (names (mapcar #'normalized-flag-name provided-names))
+             (nullable (csubtypep (specifier-type 'null) parsed-type))
              (value '#:value))
 
         `(progn
-           (let ((nullable (typep nil ',type)))
-             (register ',flag ',provided-names nullable *flags*)
-             (register ',flag ',names nullable *flags-normalized*))
+           (register ',flag ',provided-names ,nullable *flags*)
+           (register ',flag ',names ,nullable *flags-normalized*)
            ,@(when parser
                `((setf (get ',flag 'parser) ',parser)))
            (setf (get ',flag 'specified-type) ',type)
@@ -394,7 +486,7 @@ Parameters:
 (defun boolean-type-p (type)
   "Returns true if the TYPE is a boolean type-specifier."
   (declare ((or cons symbol) type))
-  (and (subtypep type 'boolean) (values (subtypep 'boolean type))))
+  (type= (specifier-type type) (specifier-type 'boolean)))
 
 (defun parse-variable (variable value &key no-p equal-sign-p)
   "Parses a string VALUE accordingly to the type of a VARIABLE.
@@ -419,17 +511,17 @@ Parameters:
            (cond ((or (null value) (string:prefixp "-" value))
                   ;; No value or the next arg is actually a flag.
                   (values type t t nil))
-                 ((and equal-sign-p (parse:true-value-string-p value))
+                 ((and equal-sign-p (true-value-string-p value))
                   ;; A value of "true", "yes", "t".
                   (values type t t t))
-                 ((and equal-sign-p (parse:false-value-string-p value))
+                 ((and equal-sign-p (false-value-string-p value))
                   ;; A value of "false", "null", "nil", "no".
                   (values type nil t t))
                  (t
                   (values type nil nil nil))))
 
           (value
-           (multiple-value-bind (result parsedp) (parse:type type value)
+           (multiple-value-bind (result parsedp) (parse-as-type type value)
              (values type result (and parsedp (typep result type)) t)))
           (t
            (values nil nil nil nil)))))

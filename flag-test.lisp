@@ -36,8 +36,6 @@
 (test-define *true* t "Test boolean flag.")
 (test-define *false* nil "Test boolean flag." :type boolean)
 
-(test-define *null* nil "Always null" :type null)
-
 (test-define *member* :a "A member flag" :type (member nil :a :b :c))
 
 (test-define *implicit-string* "string" "An implicit string flag.")
@@ -57,7 +55,7 @@ quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
 consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
 dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
 sunt in culpa qui officia deserunt mollit anim id est laborum."
-  :type (or null (member :lorem :ipsum :dolor) string))
+  :type (or null string))
 
 (test-define *print-help-and-newlines* 10
   "This
@@ -68,8 +66,6 @@ doc has embedded
 
 (test-define *integer* 10 "An integer flag" :type (or (integer -100 100) null))
 
-(test-define *number* 10 "A number flag." :type number)
-
 (test-define *float* 10.0 "A float flag" :type single-float)
 
 (test-define *double* 10.0d0 "A double flag" :type double-float)
@@ -77,11 +73,6 @@ doc has embedded
 (test-define *double3* nil "A double flag" :type (or double-float null))
 
 (test-define *mod* 10 "Modulo 10" :type (mod 16))
-
-;(test-define *plus* 10 "Positive fixnum" :type (and fixnum unsigned-byte))
-
-(test-define *some-flag* nil "A Flag that accepts inf, -inf, nan, or number."
-  :type (or (member nil :inf :-inf :nan) number))
 
 (test-define naked-flag nil "" :type boolean)
 
@@ -100,10 +91,6 @@ doc has embedded
 (test-define *parsed-flag* 0 "A flag in hex." :parser parse-hex)
 
 (deftype foo () 'fixnum)
-
-(defmethod ace.flag.parse:type ((type (eql 'foo)) value &key)
-  ;; Test default parsers for types.
-  (values (parse-integer value :radix 16) t))
 
 (test-define *foo* 0 "A foo flag" :type foo)
 
@@ -184,7 +171,7 @@ doc has embedded
       consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
       dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
       sunt in culpa qui officia deserunt mollit anim id est laborum.]
-     Type: (OR NULL (MEMBER :LOREM :IPSUM :DOLOR) STRING)
+     Type: (OR NULL STRING)
      Value: \"doc\"
 
   -M
@@ -209,10 +196,6 @@ doc has embedded
 
   --nogo [no doc] Type: BOOLEAN
 
-  --null [Always null] Type: NULL
-
-  --number [A number flag.] Type: NUMBER Value: 10
-
   --parsed-flag [A flag in hex.] Type: INTEGER Value: 0
 
   --print-help-and-newlines
@@ -225,9 +208,6 @@ doc has embedded
   --rth [no doc] Type: BOOLEAN
 
   --sfflag [no doc] Type: SINGLE-FLOAT Value: 3.14
-
-  --some-flag [A Flag that accepts inf, -inf, nan, or number.]
-     Type: (OR (MEMBER NIL :INF :-INF :NAN) NUMBER)
 
   -S
   --str
@@ -289,13 +269,13 @@ doc has embedded
 
 (deftest test-foo-flag ()
   (multiple-value-bind (type result parsed-p consume-p)
-      (parse-variable '*foo* "F00")
+      (parse-variable '*foo* "0xF00")
     (expect (equal type 'foo))
     (expect (equal result #xF00))
     (expect parsed-p)
     (expect consume-p))
 
-  (with-flags-binding (:args '("--foo" "F00"))
+  (with-flags-binding (:args '("--foo" "0xF00"))
     (expect (eq *foo* #xF00))))
 
 (deftest test-flags1 ()
@@ -303,17 +283,15 @@ doc has embedded
                                "--boolean2"
                                "--notrue"
                                "--nofalse"
-                               "--null"    "null"
                                "--member"  "a"
                                "--implicit_string" "string"
                                "--string" "abc"
                                "--very_long_doc" "doc"
                                "--implicit_integer" "1000"
                                "--integer" "20"
-                               "--number" "0x20"
                                "--float" "0.0"
                                "--nonaked_flag"
-                               "--a-flag" "10"
+                               "--a-flag" "0x20"
 
                                "--unknown-flag1" "unknown-value"
                                "--unknown-flag2"
@@ -322,11 +300,10 @@ doc has embedded
                                "--double2" "-nan"
                                "--double3" "-inf"
                                "--mod" "5"
-                               "--some_flag" "nan"
                                "--a-named_flag" "100"
                                "--named_flag2" "200"
                                "--parsed_flag" "FF"
-                               "--foo" "F00"
+                               "--foo" "0xF00"
 
                                "--unknown-flag3" "unknown-value"
                                "--unknown-flag4")
@@ -340,43 +317,38 @@ doc has embedded
     (expect *boolean2*)
     (expect (not *true*))
     (expect (not *false*))
-    (expect (not *null*))
     (expect (eq *member* :a))
     (expect (equal *implicit-string* "string"))
     (expect (equal *string* "abc"))
     (expect (equal *very-long-doc* "doc"))
     (expect (= *implicit-integer* 1000))
     (expect (= *integer* 20))
-    (expect (= *number* #x20))
     (expect (= *float* 0.0))
     (expect (= *double* 0.1d0))
     (expect (number:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
-    (expect (eq *some-flag* :nan))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
     (expect (= *parsed-flag* #xFF))
     (expect (= *foo* #xF00))
     (expect (not naked-flag))
-    (expect (= flags:a-flag 10))))
+    (expect (= flags:a-flag #x20))))
 
 (deftest test-flags2 ()
   (with-flags-binding (:args '("--boolean=no"
                                "--boolean2"
                                "--notrue"
                                "--nofalse"
-                               "--null=null"
                                "--member=a"
                                "--implicit_string=string"
                                "--string=abc"
                                "--very_long_doc=doc"
                                "--implicit_integer=1000"
                                "--integer=20"
-                               "--number=0x20"
                                "--float=0.0"
                                "--nonaked_flag"
-                               "--a-flag=10"
+                               "--a-flag=0x20"
 
                                "--unknown-flag1=unknown-value"
                                "--unknown-flag2"
@@ -385,12 +357,11 @@ doc has embedded
                                "--double2=-nan"
                                "--double3=-inf"
                                "--mod=5"
-                               "--some_flag=nan"
 
                                "--a-named_flag=100"
                                "--named_flag2=200"
                                "--parsed_flag=FF"
-                               "--foo=F00"
+                               "--foo=0xF00"
 
                                "--unknown-flag3=unknown-value"
                                "--unknown-flag4")
@@ -404,26 +375,23 @@ doc has embedded
     (expect *boolean2*)
     (expect (not *true*))
     (expect (not *false*))
-    (expect (not *null*))
     (expect (eq *member* :a))
     (expect (equal *implicit-string* "string"))
     (expect (equal *string* "abc"))
     (expect (equal *very-long-doc* "doc"))
     (expect (= *implicit-integer* 1000))
     (expect (= *integer* 20))
-    (expect (= *number* #x20))
     (expect (= *float* 0.0))
     (expect (= *double* 0.1d0))
     (expect (number:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
-    (expect (eq *some-flag* :nan))
     (expect (= *named-flag* 100))
     (expect (= *named-flag2* 200))
     (expect (= *parsed-flag* #xFF))
     (expect (= *foo* #xF00))
     (expect (not naked-flag))
-    (expect (= flags:a-flag 10))))
+    (expect (= flags:a-flag #x20))))
 
 (deftest test-flags3 ()
   (with-flags-binding (:args '("--boolean=no"
@@ -434,11 +402,9 @@ doc has embedded
                                "--unknown-flag1=unknown-value"
                                "--unknown-flag2"
 
-                               "--some_flag=nan"
-
                                "--ace.flag-test:parameter=20"
                                "--a-named_flag=100"
-                               "--foo=F00"
+                               "--foo=0xF00"
 
                                "--unknown-flag3=unknown-value"
                                "--unknown-flag4")
@@ -497,34 +463,28 @@ doc has embedded
   (test-wrong-value "--boolean" "10")
   (test-wrong-value "--boolean" ":true")
   (test-wrong-value "--boolean2" "0")
-  (test-wrong-value "--null"    "true")
   (test-wrong-value "--member"  "f")
   (test-wrong-value "--implicit_integer" "abc")
   (test-wrong-value "--integer" "0.0")
-  (test-wrong-value "--number" ":test")
   (test-wrong-value "--float" ":test")
   (test-wrong-value "--naked_flag" "very-true")
   (test-wrong-value "--double" "0f0")
   (test-wrong-value "--double2" "#xFFFF")
   (test-wrong-value "--double3" "nada")
-  (test-wrong-value "--mod" "-10")
-  (test-wrong-value "--some_flag" "nano"))
+  (test-wrong-value "--mod" "-10"))
 
 (defun test-missing-value (&rest args)
   (expect-error (flag:parse-command-line :args args :setp nil :normalize t)))
 
 (deftest test-missing-values ()
-  (test-missing-value "--null")
   (test-missing-value "--member")
   (test-missing-value "--implicit_integer")
   (test-missing-value "--integer")
-  (test-missing-value "--number")
   (test-missing-value "--float")
   (test-missing-value "--double")
   (test-missing-value "--double2")
   (test-missing-value "--double3")
-  (test-missing-value "--mod")
-  (test-missing-value "--some_flag"))
+  (test-missing-value "--mod"))
 
 (deftest invalid-names-test ()
   (expect-warning
@@ -705,7 +665,25 @@ doc has embedded
     (expect-error (parse-command-line* '("--color=orange")))))
 
 (deftest syntax-errors ()
-  (expect-warning (compile nil '(lambda () (flag:define *s* t "na" :name "s" :type vector)))))
+  (expect-warning (compile nil '(lambda () (flag:define *s* t "na" :name "s" :type string)))))
+
+(deftest invalid-types-test ()
+  (expect-error (macroexpand '(flag:define *f* nil "na" :type null)))
+  (expect-error (macroexpand '(flag:define *f* #() "na" :type vector)))
+  (expect-error (macroexpand '(flag:define *f* :a "na" :type keyword)))
+  (expect-error (macroexpand '(flag:define *f* 'a "na" :type symbol)))
+  (expect-error (macroexpand '(flag:define *f* nil "na" :type (or null keyword))))
+  (expect-error (macroexpand '(flag:define *f* 10 "na" :type (and fixnum unsigned-byte))))
+  (expect-error (macroexpand '(flag:define *f* 1.0 "na" :type float)))
+  (expect-error (macroexpand '(flag:define *f* 1 "na" :type real)))
+  (expect-error (macroexpand '(flag:define *f* 1 "na" :type number)))
+  (expect-error (macroexpand '(flag:define *f* 1.0 "na" :type (or single-float double-float))))
+  (expect-error (macroexpand '(flag:define *f* 1 "na" :type (or single-float integer))))
+  (expect-error (macroexpand '(flag:define *f* 1 "na" :type (or (integer 1 3) (integer 5 7)))))
+  (expect-error (macroexpand '(flag:define *f* nil "na" :type (or null (member :a :b) string))))
+  ;; Compound AND/OR types are allowed when an explicit :parser is supplied.
+  (expect (macroexpand '(flag:define *f* 10 "na" :type (and fixnum unsigned-byte) :parser parse-hex)))
+  (expect (macroexpand '(flag:define *f* :auto "na" :type (or (eql :auto) (integer 1 1024)) :parser parse-hex))))
 
 (test-define *no-go* nil "no doc" :name "nogo" :type boolean)
 (test-define *rth* nil "no doc" :name "rth" :type boolean)

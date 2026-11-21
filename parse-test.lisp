@@ -4,20 +4,21 @@
 ;;; license that can be found in the LICENSE file or at
 ;;; https://opensource.org/licenses/MIT.
 
-;;; Tests for the numbers package.
+;;; Tests for command-line flag value parsing.
 ;;;
 
 (defpackage #:ace.flag.parse-test
   (:use #:common-lisp
         #:ace.test)
-  (:local-nicknames (#:parse #:ace.flag.parse))
   (:import-from #:ace.core.number
                 #:double-float-not-a-number))
 
 (in-package #:ace.flag.parse-test)
 
+(defun parse-type (x y) (ace.flag::parse-as-type x y))
+
 (defun test-parse-type (type string expected)
-  (multiple-value-bind (actual parsedp) (parse:type type string)
+  (multiple-value-bind (actual parsedp) (parse-type type string)
     (expect (equal expected actual)
             "While parsing ~S as ~S, the actual value ~A differs from expected ~A"
             string type actual expected)
@@ -29,9 +30,9 @@
     (expect parsedp "Expected to parse ~S as ~S to ~A" string type expected)))
 
 (defun test-not-parsed (type string)
-  (multiple-value-bind (actual parsedp) (parse:type type string)
+  (multiple-value-bind (actual parsedp) (parse-type type string)
     (declare (ignore actual))
-      (expect (not parsedp) "Not expected to parse ~S as ~S" string type)))
+    (expect (not parsedp) "Not expected to parse ~S as ~S" string type)))
 
 (deftest test-parse-type-boolean ()
   (test-parse-type 'boolean "true" t)
@@ -58,21 +59,6 @@
   (test-not-parsed 'boolean "0")
   (test-not-parsed 'boolean "What-Ever"))
 
-(deftest test-parse-type-null ()
-  (test-parse-type 'null "false" nil)
-  (test-parse-type 'null "null" nil)
-  (test-parse-type 'null "nil" nil)
-  (test-parse-type 'null "no" nil)
-
-  (test-parse-type 'null "False" nil)
-  (test-parse-type 'null "Null" nil)
-  (test-parse-type 'null "NIL" nil)
-  (test-parse-type 'null "NO" nil)
-
-  (test-not-parsed 'null "true")
-  (test-not-parsed 'null "YES")
-  (test-not-parsed 'null "What-ever"))
-
 (deftest test-parse-type-string ()
   (test-parse-type 'string "" "")
   (test-parse-type 'string "A" "A")
@@ -90,23 +76,6 @@
   (test-parse-type 'string "ABC DEF" "ABC DEF")
   (test-parse-type 'string "Abc Def" "Abc Def")
   (test-parse-type 'string "abc def" "abc def"))
-
-
-(deftest test-parse-type-number ()
-  (test-parse-type 'number "0" 0)
-  (test-parse-type 'number "0000" 0)
-  (test-parse-type 'number "0001" 1)
-  (test-parse-type 'number "1" 1)
-  (test-parse-type 'number "-1" -1)
-  (test-parse-type 'number "1.0" 1.0d0)
-  (test-parse-type 'number "0xFF" #xFF)
-  (test-parse-type 'number "-0xFF" #x-FF)
-
-  (test-not-parsed 'number "0-1")
-  (test-not-parsed 'number "t")
-  (test-not-parsed 'number "FF")
-  (test-not-parsed 'number "")
-  (test-not-parsed 'number ":100"))
 
 (deftest test-parse-type-float ()
   (test-parse-type 'single-float "0" 0.0)
@@ -200,19 +169,35 @@
   (test-not-parsed 'fixnum ":100"))
 
 (deftest test-parse-type-or ()
-  (test-parse-type '(or number boolean) "true" t)
-  (test-parse-type '(or single-float boolean) "t" t)
+  ;; Both (or null T) and (or T null) must behave identically.
+  (test-parse-type '(or null string) "abc" "abc")
+  (test-parse-type '(or string null) "abc" "abc")
+  (test-parse-type '(or null string) "no" "no")
+  (test-parse-type '(or string null) "no" "no")
 
-  (test-parse-type '(or integer boolean) "True" t)
-  (test-parse-type '(or fixnum boolean) "YES" t)
-  (test-parse-type '(or null boolean) "T" t)
+  (test-parse-type '(or null integer) "42" 42)
+  (test-parse-type '(or integer null) "42" 42)
+  (test-parse-type '(or null integer) "nil" nil)
+  (test-parse-type '(or integer null) "null" nil)
 
-  (test-parse-type '(or number string) "True" "True")
+  (test-parse-type '(or null fixnum) "-7" -7)
+  (test-parse-type '(or fixnum null) "false" nil)
 
-  (test-parse-type '(or boolean boolean) "nil" nil)
-  (test-parse-type '(or null boolean) "no" nil)
+  (test-parse-type '(or null single-float) "1.5" 1.5)
+  (test-parse-type '(or single-float null) "no" nil)
 
   (test-parse-type '(or null double-float) "nan" double-float-not-a-number)
+  (test-parse-type '(or double-float null) "nil" nil)
 
-  (test-parse-type '(or number boolean) "NIL" nil))
+  (test-parse-type '(or null (member :a :b)) "a" :a)
+  (test-parse-type '(or (member :a :b) null) "nil" nil)
 
+  ;; Non-nullable or multi-arm unions are rejected.
+  (expect-error (parse-type '(or single-float double-float) "1.0"))
+  (expect-error (parse-type '(or single-float integer) "1"))
+  (expect-error (parse-type '(or integer string) "abc"))
+  (expect-error (parse-type '(or null integer string) "1"))
+  (expect-error (parse-type 'null "nil"))
+  (expect-error (parse-type 'float "1.0"))
+  (expect-error (parse-type 'real "1"))
+  (expect-error (parse-type 'number "1")))
