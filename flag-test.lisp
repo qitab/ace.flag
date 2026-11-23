@@ -9,8 +9,7 @@
 
 (defpackage #:ace.flag-test
   (:documentation "Test command line flag parsing code in the ACE.FLAG package.")
-  (:local-nicknames (#:number #:ace.core.number)
-                    (#:string #:ace.core.string)
+  (:local-nicknames (#:string #:ace.core.string)
                     (#:flag #:ace.flag))
   (:use #:common-lisp #:ace.test)
   (:import-from #:ace.flag
@@ -325,7 +324,7 @@ doc has embedded
     (expect (= *integer* 20))
     (expect (= *float* 0.0))
     (expect (= *double* 0.1d0))
-    (expect (number:float-nan-p *double2*))
+    (expect (sb-ext:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
     (expect (= *named-flag* 100))
@@ -383,7 +382,7 @@ doc has embedded
     (expect (= *integer* 20))
     (expect (= *float* 0.0))
     (expect (= *double* 0.1d0))
-    (expect (number:float-nan-p *double2*))
+    (expect (sb-ext:float-nan-p *double2*))
     (expect (= sb-ext:double-float-negative-infinity *double3*))
     (expect (= *mod* 5))
     (expect (= *named-flag* 100))

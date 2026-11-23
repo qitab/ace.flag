@@ -12,7 +12,7 @@
   :version "1.0"
   :author "Lisp Community"
   :license "MIT"
-  :depends-on (:ace.core)
+  :depends-on (:ace.core :sb-posix)
   :serial t
   :components
   ((:module "flag"

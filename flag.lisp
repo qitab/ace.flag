@@ -17,9 +17,6 @@
 ;;; Finally, boolean flags accept a set of boolean indicators: "yes", "no", "true", "false", ...
 ;;; which are consumed by the boolean flag at parsing.
 ;;;
-;;; Numbers are parsed in C++/Java syntax allowing for non-finite values ("inf", "-inf", "nan").
-;;;
-;;;
 
 (defpackage #:ace.flag
   (:use #:common-lisp
@@ -110,15 +107,27 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
           ((and (numeric-type-p non-null)
                 (eq (numeric-type-complexp non-null) :real)
                 (member (numeric-type-class non-null) '(integer float)))
-           (let* ((number (ace.core.number:read-number-from-string value))
-                  (coerced
-                   (ecase (numeric-type-class non-null)
-                     (integer (and (integerp number) number))
-                     (float (and (numberp number)
-                                 (ignore-errors
-                                  (coerce number (numeric-type-format non-null))))))))
-             (cond ((and coerced (ctypep coerced non-null))
-                    (values coerced t))
+           (let* ((len (length value))
+                  (parsed
+                   (and (plusp len)
+                        (ignore-errors
+                         (case (numeric-type-class non-null)
+                           ;; With integers, we use our own logic to recognize hex input
+                           ;; because strtol() contains a footgun: 0100 is octal, not decimal.
+                           ;; With floats, strtod() gets us infinity and NaN handling for free.
+                           (integer
+                            (let* ((sign (case (char value 0) (#\- -1) (#\+ 1)))
+                                   (start (if sign 1 0)))
+                              (if (and (< (+ start 2) len)
+                                       (digit-char-p (char value (+ start 2)) 16)
+                                       (string-equal value "0x" :start1 start :end1 (+ start 2)))
+                                  (* (or sign 1) (parse-integer value :start (+ start 2) :radix 16))
+                                  (parse-integer value))))
+                           (float (multiple-value-bind (d consumed) (sb-posix:strtod value)
+                                    (when (and d (plusp consumed) (= consumed (length value)))
+                                      (coerce d (numeric-type-format non-null))))))))))
+             (cond ((and parsed (ctypep parsed non-null))
+                    (values parsed t))
                    ((and nullable-p (false-value-string-p value))
                     (values nil t))
                    (t

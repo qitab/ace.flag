@@ -9,9 +9,7 @@
 
 (defpackage #:ace.flag.parse-test
   (:use #:common-lisp
-        #:ace.test)
-  (:import-from #:ace.core.number
-                #:double-float-not-a-number))
+        #:ace.test))
 
 (in-package #:ace.flag.parse-test)
 
@@ -31,8 +29,7 @@
 
 (defun test-not-parsed (type string)
   (multiple-value-bind (actual parsedp) (parse-type type string)
-    (declare (ignore actual))
-    (expect (not parsedp) "Not expected to parse ~S as ~S" string type)))
+    (expect (not parsedp) "Not expected to parse ~S as ~S, got ~S" string type actual)))
 
 (deftest test-parse-type-boolean ()
   (test-parse-type 'boolean "true" t)
@@ -79,7 +76,7 @@
 
 (deftest test-parse-type-float ()
   (test-parse-type 'single-float "0" 0.0)
-  (test-parse-type 'single-float "-0" 0.0)
+  (test-parse-type 'single-float "-0" -0.0)
 
   (test-parse-type 'single-float "0." 0.0)
   (test-parse-type 'single-float "1." 1.0)
@@ -96,7 +93,7 @@
 
 (deftest test-parse-type-double ()
   (test-parse-type 'double-float "0" 0.0d0)
-  (test-parse-type 'double-float "-0" 0.0d0)
+  (test-parse-type 'double-float "-0" -0.0d0)
 
   (test-parse-type 'double-float "0." 0.0d0)
   (test-parse-type 'double-float "1." 1.0d0)
@@ -106,6 +103,7 @@
   (test-parse-type 'double-float "1" 1.0d0)
   (test-parse-type 'double-float "-1" -1.0d0)
   (test-parse-type 'double-float "1.0" 1.0d0)
+  (test-not-parsed 'double-float "1.0 ")
   (test-parse-type 'double-float "0xFF" 255.0d0)
   (test-parse-type 'double-float "-0xFF" -255.0d0))
 
@@ -120,12 +118,13 @@
   (test-parse-type 'integer "-0000" 0)
   (test-parse-type 'integer "-0001" -1)
 
-  (test-parse-type 'integer "0." 0)
-  (test-parse-type 'integer "1." 1)
+  (test-not-parsed 'integer "0.")
+  (test-not-parsed 'integer "1.")
   (test-parse-type 'integer "1" 1)
   (test-parse-type 'integer "-1" -1)
   (test-parse-type 'integer "0xFF" #xFF)
   (test-parse-type 'integer "-0xFF" #x-FF)
+  (test-parse-type 'integer "99999999999999999999" 99999999999999999999)
 
   (test-not-parsed 'integer "0e0")
   (test-not-parsed 'integer "0.0")
@@ -149,8 +148,6 @@
   (test-parse-type 'fixnum "-0000" 0)
   (test-parse-type 'fixnum "-0001" -1)
 
-  (test-parse-type 'fixnum "0." 0)
-  (test-parse-type 'fixnum "1." 1)
   (test-parse-type 'fixnum "1" 1)
   (test-parse-type 'fixnum "-1" -1)
   (test-parse-type 'fixnum "0xFF" #xFF)
@@ -186,7 +183,7 @@
   (test-parse-type '(or null single-float) "1.5" 1.5)
   (test-parse-type '(or single-float null) "no" nil)
 
-  (test-parse-type '(or null double-float) "nan" double-float-not-a-number)
+  (test-parse-type '(or null double-float) "nan" (sb-kernel:make-double-float #x7FF80000 0))
   (test-parse-type '(or double-float null) "nil" nil)
 
   (test-parse-type '(or null (member :a :b)) "a" :a)
