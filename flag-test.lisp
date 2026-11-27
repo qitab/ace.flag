@@ -18,7 +18,7 @@
 
 (in-package #:ace.flag-test)
 
-;;; All the tests except one expect that NAME gets defined via DEFPARAMETER,
+;;; The tests expect that NAME gets defined via DEFPARAMETER,
 ;;; whereas by default the flag can't be LET-bound.
 (defmacro test-define (name val doc &rest rest)
   (if (getf rest :type)
@@ -217,8 +217,6 @@ doc has embedded
   --string [A string flag.] Type: (OR NULL STRING)
 
   --stringflag [no doc] Type: STRING Value: \"foo\"
-
-  --symbol-macro-flag Type: BOOLEAN
 
   --true [Test boolean flag.] Type: BOOLEAN Value: T
 
@@ -691,16 +689,5 @@ doc has embedded
   (expect-error (flag:define *b* nil "na" :name "boolflag" :type boolean))
   (expect-error (flag:define *go* nil "na" :name "go" :type boolean)))
 
-(defvar *symbol-flag* nil)
-
-(define-symbol-macro *symbol-macro-flag* *symbol-flag*)
-
-(flag:define *symbol-macro-flag* nil "no doc" :type boolean :def nil)
-
-(deftest symbol-macro-flag-test ()
-  (let ((*symbol-flag* nil))
-    (flag:parse-command-line :args '("--symbol-macro-flag"))
-    (expect (eq t *symbol-flag*)))
-  (let ((*symbol-flag* t))
-    (flag:parse-command-line :args '("--nosymbol-macro-flag"))
-    (expect (eq nil *symbol-flag*))))
+(deftest def-nil-rejected ()
+  (expect-error (macroexpand '(flag:define *f* nil "na" :type boolean :def nil))))

@@ -26,6 +26,7 @@
   (:export #:command-line
            #:parse-command-line
            #:print-help
+           #:*help-preamble*
            #:define))
 
 (in-package #:ace.flag)
@@ -180,6 +181,7 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
                                    (def 'sb-ext:define-load-time-global)
                                    setter
                                    &aux parsed-type)
+  (declare (type (member sb-ext:define-load-time-global defvar defparameter) def))
   "Defines a flag and registers it as such under a name with stripped '*' and '-' in place of '_'.
  Flags in the FLAGS package are external. Note that the default name of the flag at command line
  does not include the package specifier and thus flags that share the same name may rise conflicts.
@@ -202,9 +204,8 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
                   If parser is not specified, a default parser for the flag type maybe invoked
                   using type-utils:parse-type method.
   DEF           - The defining operation used to define the flag.
-                  Default is SB-EXT:DEFINE-LOAD-TIME-GLOBAL. If NIL, the flag variable is
-                  not defined by this form and the default value is ignored.
-  SETTER        - The setter used to set the flag. If NIL, a default SETF setter is used."
+                  Default is SB-EXT:DEFINE-LOAD-TIME-GLOBAL.
+  SETTER        - Optional custom setter function used to set the flag instead of SET."
 
   (when name (push name names))
   (flet ((fail (&rest args)
@@ -256,8 +257,7 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
 
       (let* ((provided-names (or names (list flag-variable-name)))
              (names (mapcar #'normalized-flag-name provided-names))
-             (nullable (csubtypep (specifier-type 'null) parsed-type))
-             (value '#:value))
+             (nullable (csubtypep (specifier-type 'null) parsed-type)))
 
         `(progn
            (register ',flag ',provided-names ,nullable *flags*)
@@ -265,17 +265,10 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
            ,@(when parser
                `((setf (get ',flag 'parser) ',parser)))
            (setf (get ',flag 'specified-type) ',type)
+           ,@(when setter `((setf (get ',flag 'setter) ,setter)))
 
-           ,@(when def
-               `((declaim (type ,type ,flag))
-                 (,def ,flag (the ,type ,default) ,doc)))
-
-           (eval-when (:load-toplevel)
-             (setf (get ',flag 'setter)
-                   ,(or setter
-                        `(lambda (,value)
-                           (declare (optimize safety))
-                           (setf ,flag ,value)))))
+           (declaim (type ,type ,flag))
+           (,def ,flag (the ,type ,default) ,doc)
 
            ,@(when (eq (symbol-package flag) +flags-package+)
                ;; All flags in the flags package are external.
@@ -346,10 +339,19 @@ BOOLEAN, symbol MEMBER enums, STRING, single-interval INTEGER subtypes
 (defvar *print-help-exclude-packages* '("COMMON-LISP")
   "A list of packages that are excluded from the PRINT-HELP output.")
 
-(defgeneric print-help (&key stream right-margin indent indent-help parentheses
-                        prefix normalize include-packages
-                        exclude-packages)
-  (:documentation
+(declaim ((or string null) *help-preamble*))
+(sb-ext:defglobal *help-preamble* nil "String printed at the top of PRINT-HELP.")
+
+(defun print-help (&key
+                       (stream *standard-output*)
+                       (right-margin 80)
+                       (indent 4)
+                       (indent-help 5)
+                       (parentheses "()")
+                       (prefix "--")
+                       (normalize nil)
+                       (include-packages nil)
+                       (exclude-packages *print-help-exclude-packages*))
    "Prints help for flags registered using the DEFINE macro.
 The flags are ordered by package name and by the symbol-name.
 
@@ -364,21 +366,11 @@ Parameters:
  NORMALIZE - if non-nil, the names of flags are printed in the normalized form.
              Normalized form uses hyphens and lower-case characters.
  INCLUDE-PACKAGES - a list of package designators to print flags from.
- EXCLUDE-PACKAGES - a list of packages excluded from the PRINT-HELP output."))
-
-(defmethod print-help (&key
-                       (stream *standard-output*)
-                       (right-margin 80)
-                       (indent 4)
-                       (indent-help 5)
-                       (parentheses "()")
-                       (prefix "--")
-                       (normalize nil)
-                       (include-packages nil)
-                       (exclude-packages *print-help-exclude-packages*))
+ EXCLUDE-PACKAGES - a list of packages excluded from the PRINT-HELP output."
   (declare (stream stream)
            (fixnum right-margin indent indent-help)
            (list include-packages exclude-packages))
+  (when *help-preamble* (write-string *help-preamble* stream))
   (let ((*print-right-margin* right-margin)
         (*print-pretty* t)
         (*package* (find-package "COMMON-LISP-USER"))
@@ -513,7 +505,7 @@ Parameters:
 
           (parser
            (multiple-value-bind (result parsed-p) (funcall parser value)
-             (values type result (and (or parsed-p result) t) t)))
+             (values type result (and (or parsed-p result) (typep result type) t) t)))
 
           ((boolean-type-p type)
            ;; Special handling of pure boolean flags.
